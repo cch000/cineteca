@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 cursive = "0.21.1"
+ffmpeg-next = "7.1.0"
 walkdir = "2.5.0"
