@@ -3,6 +3,8 @@
 debug/
 target/
 
+*.json
+
 **/*.rs.bk
 
 
