@@ -10,7 +10,7 @@ use ffmpeg_next::log::Level::Quiet;
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
-#[derive(Ord, PartialOrd, Eq, Serialize, Deserialize, PartialEq)]
+#[derive(Serialize, Deserialize, PartialEq, Clone)]
 pub struct Movie {
     pub name: String,
     pub path: PathBuf,
@@ -41,11 +41,11 @@ impl MoviesLib {
         Ok(MoviesLib { movies })
     }
 
-    pub fn get_mut_movie(&mut self, index: usize) -> &mut Movie {
-        self.movies.get_mut(index).unwrap()
+    pub fn get_mut_movie(&mut self, index: usize) -> Option<&mut Movie> {
+        self.movies.get_mut(index)
     }
-    pub fn get_movie(&self, index: usize) -> &Movie {
-        self.movies.get(index).unwrap()
+    pub fn get_movie(&self, index: usize) -> Option<&Movie> {
+        self.movies.get(index)
     }
 
     pub fn save_movies(&self) -> Result<(), Box<dyn Error>> {

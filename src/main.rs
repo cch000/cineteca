@@ -1,114 +1,136 @@
 mod movies;
 
+use cursive::{
+    event::EventResult,
+    view::{Resizable, Scrollable},
+    views::{Dialog, OnEventView, SelectView},
+};
+use movies::MoviesLib;
 use std::{
     error::Error,
     process::{Command, Stdio},
     sync::{Arc, RwLock},
 };
 
-use cursive::{
-    event::EventResult,
-    view::{Resizable, Scrollable},
-    views::{Dialog, OnEventView, SelectView},
-    With,
-};
-use movies::MoviesLib;
+struct App {
+    movies: Arc<RwLock<MoviesLib>>,
+}
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let mut c = cursive::default();
-    let movies_path = "/home/cch/Videos/arr";
-
-    let movies_lib = Arc::new(RwLock::new(MoviesLib::init(movies_path)?));
-
-    c.add_global_callback('q', |s| s.quit());
-
-    let movies_lib_view: Arc<RwLock<MoviesLib>> = Arc::clone(&movies_lib);
-    let mut select = SelectView::new().with(|list| {
-        if let Ok(movies_lib) = movies_lib_view.read() {
-            movies_lib
-                .movies
-                .iter()
-                .enumerate()
-                .for_each(|(index, movie)| {
-                    let label = format!(
-                        "{}{}",
-                        if movie.watched { "[WATCHED] " } else { "" },
-                        movie.name
-                    );
-                    list.add_item(label, index);
-                });
-        }
-    });
-
-    // Sets the callback for when "Enter" is pressed.
-    let movies_lib_submit: Arc<RwLock<MoviesLib>> = Arc::clone(&movies_lib);
-    select.set_on_submit(move |_, index| {
-        Command::new("mpv")
-            .arg(
-                movies_lib_submit
-                    .read()
-                    .unwrap()
-                    .get_movie(*index)
-                    .path
-                    .clone(),
-            )
-            .arg("--really-quiet") // Suppress MPV output
-            .stdout(Stdio::null()) // Redirect stdout to null
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap()
-            .wait()
-            .unwrap();
-    });
-
-    let movies_lib_callback: Arc<RwLock<MoviesLib>> = Arc::clone(&movies_lib);
-    let select = OnEventView::new(select)
-        .on_pre_event_inner('k', |s, _| {
-            let cb = s.select_up(1);
-            Some(EventResult::Consumed(Some(cb)))
+impl App {
+    fn new(path: &str) -> Result<Self, Box<dyn Error>> {
+        Ok(Self {
+            movies: Arc::new(RwLock::new(MoviesLib::init(path)?)),
         })
-        .on_pre_event_inner('j', |s, _| {
-            let cb = s.select_down(1);
-            Some(EventResult::Consumed(Some(cb)))
-        })
-        .on_pre_event_inner('w', move |s, _| {
-            let index = *s.selection().unwrap();
-            if let Ok(mut movies_lib) = movies_lib_callback.write() {
-                let movie = movies_lib.get_mut_movie(index);
-                movie.toggle_watched();
-                let (label, _) = s.get_item_mut(index).unwrap();
-
-                *label = format!(
-                    "{}{}",
-                    if movie.watched { "[WATCHED] " } else { "" },
-                    movie.name
-                )
-                .into();
-
-                // Save movies after updating watched status
-                if let Err(e) = &movies_lib.save_movies() {
-                    eprintln!("Failed to save movies: {}", e);
-                }
-            }
-
-            Some(EventResult::Consumed(None))
-        });
-
-    c.add_fullscreen_layer(
-        Dialog::new()
-            .title("MOVIES")
-            .content(select.scrollable().scroll_y(true).show_scrollbars(true))
-            .full_screen(),
-    );
-
-    c.run();
-
-    // Save movies one final time before exiting
-    if let Ok(movies_lib) = movies_lib.read() {
-        if let Err(e) = &movies_lib.save_movies() {
-            eprintln!("Failed to save movies on exit: {}", e);
-        }
     }
 
+    fn run(&self) -> Result<(), Box<dyn Error>> {
+        let mut app = cursive::default();
+
+        app.add_global_callback('q', |s| s.quit());
+
+        app.add_fullscreen_layer(
+            Dialog::new()
+                .title("Movies Library")
+                .content(self.movies_view()?.scrollable())
+                .full_screen(),
+        );
+
+        app.run();
+
+        if let Ok(movies) = self.movies.read() {
+            movies.save_movies()?;
+        }
+
+        Ok(())
+    }
+
+    fn movies_view(&self) -> Result<OnEventView<SelectView<usize>>, Box<dyn Error>> {
+        let mut select = SelectView::new();
+        let movies = Arc::clone(&self.movies);
+        let movies_clone = Arc::clone(&self.movies);
+
+        Self::update_movies_view(&movies, &mut select, None)?;
+
+        let view = OnEventView::new(select)
+            .on_pre_event_inner('k', |s, _| {
+                let cb = s.select_up(1);
+                Some(EventResult::Consumed(Some(cb)))
+            })
+            .on_pre_event_inner('j', |s, _| {
+                let cb = s.select_down(1);
+                Some(EventResult::Consumed(Some(cb)))
+            })
+            .on_pre_event_inner('w', move |s, _| {
+                if let Some(idx) = s.selection() {
+                    Self::update_movies_view(&movies, s, Some(*idx)).ok();
+                }
+                Some(EventResult::Consumed(None))
+            })
+            .on_pre_event_inner('p', move |s, _| {
+                if let Some(idx) = s.selection() {
+                    Self::update_movies_view(&movies_clone, s, Some(*idx)).ok();
+                    if let Ok(lib) = &movies_clone.read() {
+                        let movie = lib.get_movie(*idx)?;
+                        Command::new("mpv")
+                            .arg(&movie.path)
+                            .arg("--really-quiet")
+                            .stdout(Stdio::null())
+                            .stderr(Stdio::null())
+                            .spawn()
+                            .ok();
+                    }
+                }
+                Some(EventResult::Consumed(None))
+            });
+        Ok(view)
+    }
+
+    fn update_movies_view(
+        movies: &Arc<RwLock<MoviesLib>>,
+        view: &mut SelectView<usize>,
+        toggle_idx: Option<usize>,
+    ) -> Result<(), Box<dyn Error>> {
+        let selected = view.selected_id();
+
+        // Toggle watched status if requested
+        if let Some(idx) = toggle_idx {
+            if let Ok(mut lib) = movies.write() {
+                if let Some(movie) = lib.get_mut_movie(idx) {
+                    movie.toggle_watched();
+                }
+                lib.save_movies().ok();
+            }
+        }
+
+        if let Ok(lib) = movies.read() {
+            let mut items: Vec<_> = lib.movies.iter().enumerate().collect();
+
+            items.sort_by(|(_, a), (_, b)| {
+                a.watched
+                    .cmp(&b.watched)
+                    .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+            });
+
+            view.clear();
+            for (idx, movie) in items {
+                let name = if movie.watched {
+                    format!("[WATCHED] {}", movie.name)
+                } else {
+                    movie.name.clone()
+                };
+                view.add_item(name, idx);
+            }
+
+            if let Some(id) = selected {
+                view.set_selection(id);
+            }
+        }
+        Ok(())
+    }
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let app = App::new("/home/cch/Videos/arr")?;
+    app.run()?;
     Ok(())
 }
