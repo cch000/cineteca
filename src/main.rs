@@ -73,7 +73,6 @@ impl App {
                         let movie = lib.get_movie(*idx)?;
                         Command::new("mpv")
                             .arg(&movie.path)
-                            .arg("--really-quiet")
                             .stdout(Stdio::null())
                             .stderr(Stdio::null())
                             .spawn()
