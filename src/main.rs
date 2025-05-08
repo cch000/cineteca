@@ -66,27 +66,7 @@ impl App {
                 Some(EventResult::Consumed(None))
             })
             .on_pre_event_inner('p', move |s, _| {
-                let name = s
-                    .selected_id()
-                    .and_then(|id| s.get_item(id).map(|(_, name)| name));
-
-                if let Some(name) = name {
-                    if let Ok(mut lib) = movies_clone.write() {
-                        if let Some((path, _)) = lib.movies.get(name) {
-                            Command::new("mpv")
-                                .arg(path)
-                                .stdout(Stdio::null())
-                                .stderr(Stdio::null())
-                                .spawn()
-                                .ok();
-
-                            lib.set_watched(name).ok();
-                            lib.save_movies().ok();
-                        }
-                    }
-                    Self::update_movies_view(&movies_clone, s).ok();
-                }
-
+                Self::play_movie(&movies_clone, s);
                 Some(EventResult::Consumed(None))
             });
         Ok(view)
@@ -140,6 +120,29 @@ impl App {
             }
         }
         Ok(())
+    }
+
+    fn play_movie(movies_clone: &Arc<RwLock<MoviesLib>>, s: &mut SelectView) {
+        let name = s
+            .selected_id()
+            .and_then(|id| s.get_item(id).map(|(_, name)| name));
+
+        if let Some(name) = name {
+            if let Ok(mut lib) = movies_clone.write() {
+                if let Some((path, _)) = lib.movies.get(name) {
+                    Command::new("mpv")
+                        .arg(path)
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .spawn()
+                        .ok();
+
+                    lib.set_watched(name).ok();
+                    lib.save_movies().ok();
+                }
+            }
+            Self::update_movies_view(movies_clone, s).ok();
+        }
     }
 }
 
