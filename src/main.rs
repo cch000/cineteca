@@ -6,6 +6,7 @@ use cursive::{
     views::{Dialog, OnEventView, SelectView},
 };
 use movies::MoviesLib;
+
 use std::{
     error::Error,
     process::{Command, Stdio},
@@ -44,12 +45,12 @@ impl App {
         Ok(())
     }
 
-    fn movies_view(&self) -> Result<OnEventView<SelectView<usize>>, Box<dyn Error>> {
+    fn movies_view(&self) -> Result<OnEventView<SelectView<String>>, Box<dyn Error>> {
         let mut select = SelectView::new();
         let movies = Arc::clone(&self.movies);
         let movies_clone = Arc::clone(&self.movies);
 
-        Self::update_movies_view(&movies, &mut select, None)?;
+        Self::update_movies_view(&movies, &mut select)?;
 
         let view = OnEventView::new(select)
             .on_pre_event_inner('k', |s, _| {
@@ -61,67 +62,81 @@ impl App {
                 Some(EventResult::Consumed(Some(cb)))
             })
             .on_pre_event_inner('w', move |s, _| {
-                if let Some(idx) = s.selection() {
-                    Self::update_movies_view(&movies, s, Some(*idx)).ok();
-                }
+                Self::update_watched(&movies, s).ok();
                 Some(EventResult::Consumed(None))
             })
             .on_pre_event_inner('p', move |s, _| {
-                if let Some(idx) = s.selection() {
-                    Self::update_movies_view(&movies_clone, s, Some(*idx)).ok();
-                    if let Ok(lib) = &movies_clone.read() {
-                        let movie = lib.get_movie(*idx)?;
-                        Command::new("mpv")
-                            .arg(&movie.path)
-                            .stdout(Stdio::null())
-                            .stderr(Stdio::null())
-                            .spawn()
-                            .ok();
+                let name = s
+                    .selected_id()
+                    .and_then(|id| s.get_item(id).map(|(_, name)| name));
+
+                if let Some(name) = name {
+                    if let Ok(mut lib) = movies_clone.write() {
+                        if let Some((path, _)) = lib.movies.get(name) {
+                            Command::new("mpv")
+                                .arg(path)
+                                .stdout(Stdio::null())
+                                .stderr(Stdio::null())
+                                .spawn()
+                                .ok();
+
+                            lib.set_watched(name).ok();
+                            lib.save_movies().ok();
+                        }
                     }
+                    Self::update_movies_view(&movies_clone, s).ok();
                 }
+
                 Some(EventResult::Consumed(None))
             });
         Ok(view)
     }
 
-    fn update_movies_view(
+    fn update_watched(
         movies: &Arc<RwLock<MoviesLib>>,
-        view: &mut SelectView<usize>,
-        toggle_idx: Option<usize>,
+        view: &mut SelectView<String>,
     ) -> Result<(), Box<dyn Error>> {
         let selected = view.selected_id();
+        let name = selected.and_then(|id| view.get_item(id).map(|(_, name)| name)); // Get the actual movie name
 
-        // Toggle watched status if requested
-        if let Some(idx) = toggle_idx {
+        if let Some(name) = name {
             if let Ok(mut lib) = movies.write() {
-                if let Some(movie) = lib.get_mut_movie(idx) {
-                    movie.toggle_watched();
-                }
-                lib.save_movies().ok();
+                lib.toggle_watched(name)?;
+                lib.save_movies()?;
             }
         }
 
-        if let Ok(lib) = movies.read() {
-            let mut items: Vec<_> = lib.movies.iter().enumerate().collect();
+        Self::update_movies_view(movies, view)?;
+        Ok(())
+    }
 
-            items.sort_by(|(_, a), (_, b)| {
-                a.watched
-                    .cmp(&b.watched)
-                    .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    fn update_movies_view(
+        movies: &Arc<RwLock<MoviesLib>>,
+        view: &mut SelectView<String>,
+    ) -> Result<(), Box<dyn Error>> {
+        if let Ok(lib) = movies.read() {
+            let selected = view.selected_id();
+            let mut items: Vec<_> = lib.movies.iter().collect();
+
+            items.sort_by(|(a_name, a_data), (b_name, b_data)| {
+                a_data
+                    .1
+                    .cmp(&b_data.1)
+                    .then_with(|| a_name.to_lowercase().cmp(&b_name.to_lowercase()))
             });
 
             view.clear();
-            for (idx, movie) in items {
-                let name = if movie.watched {
-                    format!("[WATCHED] {}", movie.name)
+            for (name, (_, watched)) in items {
+                let display_name = if *watched {
+                    format!("[WATCHED] {}", name)
                 } else {
-                    movie.name.clone()
+                    name.clone()
                 };
-                view.add_item(name, idx);
+                view.add_item(display_name, name.clone());
             }
 
-            if let Some(id) = selected {
-                view.set_selection(id);
+            if let Some(selected) = selected {
+                view.set_selection(selected);
             }
         }
         Ok(())
