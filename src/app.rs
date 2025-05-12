@@ -161,25 +161,27 @@ impl App {
             None => return,
         };
 
-        let mut lib = match movies.write() {
-            Ok(lib) => lib,
-            Err(_) => return,
-        };
+        {
+            let mut lib = match movies.write() {
+                Ok(lib) => lib,
+                Err(_) => return,
+            };
 
-        let (path, _) = match lib.movies.get(name) {
-            Some(movie_info) => movie_info,
-            None => return,
-        };
+            let (path, _) = match lib.movies.get(name) {
+                Some(movie_info) => movie_info,
+                None => return,
+            };
 
-        Command::new("mpv")
-            .arg(path)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .ok();
+            Command::new("mpv")
+                .arg(path)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .ok();
 
-        lib.set_watched(name).ok();
-        lib.save_movies().ok();
+            lib.set_watched(name).ok();
+            lib.save_movies().ok();
+        }
 
         Self::update_movies_view(movies, s).ok();
     }
