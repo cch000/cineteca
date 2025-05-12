@@ -13,7 +13,10 @@ use ffmpeg_next::log::Level::Quiet;
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
-use rayon::prelude::*;
+use rayon::iter::{ParallelBridge, ParallelIterator};
+
+const SAVE_FILE: &str = ".movies.json";
+const EXTENSIONS: [&str; 4]  = ["mkv", "mp4", "avi", "mov"];
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Hash)]
 pub struct Movie {
@@ -28,8 +31,7 @@ pub struct MoviesLib {
     hash: u64,
 }
 
-const SAVE_FILE: &str = ".movies.json";
-const EXTENSIONS: [&str; 2] = ["mkv", "mp4"];
+
 
 impl MoviesLib {
     pub fn init(movies_path: &str) -> Result<MoviesLib, Box<dyn std::error::Error>> {
