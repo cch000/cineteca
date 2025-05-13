@@ -6,14 +6,12 @@ use std::{env, error::Error};
 use app::App;
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let args: Vec<String> = env::args().collect();
+    let path = env::args()
+        .nth(1)
+        .unwrap_or_else(|| String::from("."));
 
-    let path = match args.len() > 1 {
-        true => &args[1],
-        false => ".",
-    };
-
-    (App::new(path)?).run()?;
+    App::new(&path)?.run()?;
 
     Ok(())
 }
+

@@ -11,12 +11,12 @@ use std::{
 use cursive::reexports::ahash::HashMap;
 use ffmpeg_next::log::Level::Quiet;
 use serde::{Deserialize, Serialize};
-use walkdir::WalkDir;
+use walkdir::{DirEntry, WalkDir};
 
 use rayon::iter::{ParallelBridge, ParallelIterator};
 
 const SAVE_FILE: &str = ".movies.json";
-const EXTENSIONS: [&str; 4]  = ["mkv", "mp4", "avi", "mov"];
+const EXTENSIONS: [&str; 4] = ["mkv", "mp4", "avi", "mov"];
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Hash)]
 pub struct Movie {
@@ -31,11 +31,9 @@ pub struct MoviesLib {
     hash: u64,
 }
 
-
-
 impl MoviesLib {
-    pub fn init(movies_path: &str) -> Result<MoviesLib, Box<dyn std::error::Error>> {
-        let current_hash = Self::hash_dir(movies_path)?;
+    pub fn init(movies_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let current_hash = Self::hash_dir(movies_path);
 
         let movies = if let Ok(saved_movies) = Self::load_movies_save() {
             if current_hash == saved_movies.hash {
@@ -55,59 +53,56 @@ impl MoviesLib {
         Ok(())
     }
 
-    pub fn toggle_watched(&mut self, name: &str) -> Result<(), Box<dyn Error>> {
+    pub fn toggle_watched(&mut self, name: &str) {
         self.movies
             .entry(name.to_owned())
             .and_modify(|(_, watched)| *watched = watched.not());
-        Ok(())
     }
 
-    pub fn set_watched(&mut self, name: &str) -> Result<(), Box<dyn Error>> {
+    pub fn set_watched(&mut self, name: &str) {
         self.movies
             .entry(name.to_owned())
             .and_modify(|(_, watched)| *watched = true);
-
-        Ok(())
     }
 
     fn load_movies_save() -> Result<Self, Box<dyn Error>> {
         if Path::new(SAVE_FILE).exists() {
             let json = fs::read_to_string(SAVE_FILE)?;
-            let movies: MoviesLib = serde_json::from_str(&json)?;
+            let movies: Self = serde_json::from_str(&json)?;
             Ok(movies)
         } else {
             Err("No saved movies or empty save file".into())
         }
     }
 
-    fn hash_dir(movies_path: &str) -> Result<u64, Box<dyn Error>> {
+    fn hash_dir(movies_path: &str) -> u64 {
         let names: Vec<String> = WalkDir::new(movies_path)
-            .max_depth(3)
             .into_iter()
             .par_bridge()
-            .filter_map(|res| res.ok())
+            .filter_map(Result::ok)
             .filter_map(|entry| Some(entry.file_name().to_string_lossy().into_owned()))
             .collect();
+
         let mut hash = DefaultHasher::new();
         names.hash(&mut hash);
-        Ok(hash.finish())
+        hash.finish()
     }
 
     fn is_movie(path: &Path, extensions: &HashSet<&OsStr>) -> Result<bool, Box<dyn Error>> {
-        if !path
+        if path
             .extension()
             .is_some_and(|ext| extensions.contains(&ext))
         {
-            Ok(false)
-        } else {
-            let duration = ffmpeg_next::format::input(path)?.duration() as f64
-                / f64::from(ffmpeg_next::ffi::AV_TIME_BASE);
+            let duration = ffmpeg_next::format::input(path)?.duration()
+                / i64::from(ffmpeg_next::ffi::AV_TIME_BASE);
 
-            Ok(duration.ge(&3600.0))
+            Ok(duration.ge(&3600))
+        } else {
+            Ok(false)
         }
     }
 
-    fn process_movie_entry(entry: walkdir::DirEntry) -> Option<(String, (PathBuf, bool))> {
+    fn process_movie_entry(entry: &DirEntry) -> Option<(String, (PathBuf, bool))> {
         let path = entry.path();
 
         let extensions: HashSet<&OsStr> = EXTENSIONS.iter().map(OsStr::new).collect();
@@ -127,7 +122,7 @@ impl MoviesLib {
 
     fn build_movies_lib(
         movies_path: &str,
-        existing_movies: Option<MoviesLib>,
+        existing_movies: Option<Self>,
         current_hash: Option<u64>,
     ) -> Result<Self, Box<dyn Error>> {
         Self::ffmpeg_init()?;
@@ -136,11 +131,11 @@ impl MoviesLib {
             .into_iter()
             .par_bridge()
             .filter_map(Result::ok)
-            .filter_map(Self::process_movie_entry)
+            .filter_map(|entry: walkdir::DirEntry| Self::process_movie_entry(&entry))
             .collect();
 
         if let Some(lib) = &existing_movies {
-            for (name, (_, watched)) in lib.movies.iter() {
+            for (name, (_, watched)) in &lib.movies {
                 if let Some((_, existing_watched)) = current_movies.get_mut(name) {
                     *existing_watched = *watched;
                 }
@@ -153,9 +148,9 @@ impl MoviesLib {
                 lib.hash = current_hash.unwrap();
                 Ok(lib)
             }
-            None => Ok(MoviesLib {
+            None => Ok(Self {
                 movies: current_movies,
-                hash: Self::hash_dir(movies_path)?,
+                hash: Self::hash_dir(movies_path),
             }),
         }
     }

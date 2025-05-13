@@ -1,5 +1,5 @@
 use cursive::{
-    With,
+    Cursive, With,
     event::EventResult,
     theme::{BorderStyle, Palette},
     view::{Resizable, Scrollable},
@@ -54,12 +54,12 @@ impl App {
             }),
         });
 
-        app.add_global_callback('q', |s| s.quit());
+        app.add_global_callback('q', Cursive::quit);
 
         app.add_fullscreen_layer(
             Dialog::new()
                 .title("Movies Library")
-                .content(self.movies_view()?.scrollable())
+                .content(self.movies_view().scrollable())
                 .full_screen(),
         );
 
@@ -72,14 +72,14 @@ impl App {
         Ok(())
     }
 
-    fn movies_view(&self) -> Result<OnEventView<SelectView<String>>, Box<dyn Error>> {
+    fn movies_view(&self) -> OnEventView<SelectView> {
         let mut select = SelectView::new();
         let movies = Arc::clone(&self.movies);
         let movies_clone = Arc::clone(&self.movies);
 
-        Self::update_movies_view(&movies, &mut select)?;
+        Self::update_movies_view(&movies, &mut select);
 
-        let view = OnEventView::new(select)
+        OnEventView::new(select)
             .on_pre_event_inner('k', |s, _| {
                 let cb = s.select_up(1);
                 Some(EventResult::Consumed(Some(cb)))
@@ -95,8 +95,7 @@ impl App {
             .on_pre_event_inner('p', move |s, _| {
                 Self::play_movie(&movies_clone, s);
                 Some(EventResult::Consumed(None))
-            });
-        Ok(view)
+            })
     }
 
     fn update_watched(
@@ -108,19 +107,16 @@ impl App {
 
         if let Some(name) = name {
             if let Ok(mut lib) = movies.write() {
-                lib.toggle_watched(name)?;
+                lib.toggle_watched(name);
                 lib.save_movies()?;
             }
         }
 
-        Self::update_movies_view(movies, view)?;
+        Self::update_movies_view(movies, view);
         Ok(())
     }
 
-    fn update_movies_view(
-        movies: &Arc<RwLock<MoviesLib>>,
-        view: &mut SelectView<String>,
-    ) -> Result<(), Box<dyn Error>> {
+    fn update_movies_view(movies: &Arc<RwLock<MoviesLib>>, view: &mut SelectView<String>) {
         let selected = view.selected_id();
 
         if let Ok(lib) = movies.read() {
@@ -137,7 +133,7 @@ impl App {
 
             for (name, (_, watched)) in items {
                 let display_name = if *watched {
-                    format!("[WATCHED] {}", name)
+                    format!("[WATCHED] {name}")
                 } else {
                     name.clone()
                 };
@@ -148,28 +144,21 @@ impl App {
         if let Some(selected) = selected {
             view.set_selection(selected);
         }
-
-        Ok(())
     }
 
     fn play_movie(movies: &Arc<RwLock<MoviesLib>>, s: &mut SelectView) {
-        let name = match s
+        let Some(name) = s
             .selected_id()
             .and_then(|id| s.get_item(id).map(|(_, name)| name))
-        {
-            Some(name) => name,
-            None => return,
+        else {
+            return;
         };
 
         {
-            let mut lib = match movies.write() {
-                Ok(lib) => lib,
-                Err(_) => return,
-            };
+            let Ok(mut lib) = movies.write() else { return };
 
-            let (path, _) = match lib.movies.get(name) {
-                Some(movie_info) => movie_info,
-                None => return,
+            let Some((path, _)) = lib.movies.get(name) else {
+                return;
             };
 
             Command::new("mpv")
@@ -179,10 +168,10 @@ impl App {
                 .spawn()
                 .ok();
 
-            lib.set_watched(name).ok();
+            lib.set_watched(name);
             lib.save_movies().ok();
         }
 
-        Self::update_movies_view(movies, s).ok();
+        Self::update_movies_view(movies, s);
     }
 }
