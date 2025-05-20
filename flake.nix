@@ -18,7 +18,8 @@
       nativeBuildInputs = with pkgs; [
         pkg-config
         clang
-        llvmPackages.libclang
+        rustPlatform.bindgenHook
+        clippy
       ];
 
       buildInputs = with pkgs; [
@@ -41,10 +42,6 @@
 
           cargoLock.lockFile = ./Cargo.lock;
 
-          env = {
-            LIBCLANG_PATH = "${pkgs.llvmPackages.libclang.lib}/lib";
-          };
-
           meta = with pkgs.lib; {
             inherit platforms;
             description = "TUI application for movies";
@@ -58,8 +55,6 @@
       }
     );
 
-    
-
     devShells = forAllplatforms (
       platform: let
         pkgs = nixpkgs.legacyPackages.${platform};
@@ -67,6 +62,7 @@
       in {
         default = pkgs.mkShell {
           inherit (inputs) nativeBuildInputs buildInputs;
+          inputsFrom = [self.packages.${platform}.default];
         };
       }
     );
