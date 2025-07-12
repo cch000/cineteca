@@ -1,9 +1,9 @@
 use cursive::{
     Cursive, With,
-    event::EventResult,
+    event::{Event, EventResult},
     theme::{BorderStyle, Palette},
     view::{Resizable, Scrollable},
-    views::{Dialog, OnEventView, SelectView},
+    views::{Dialog, OnEventView, SelectView, TextView},
 };
 use movies::MoviesLib;
 
@@ -14,6 +14,13 @@ use std::{
 };
 
 use crate::movies;
+
+const HELP_KEYBINDS: &[&str] = &[
+    "w -> mark as watched",
+    "p -> play a movie",
+    "? -> show this dialog",
+    "ESC -> go back",
+];
 
 pub struct App {
     movies: Arc<RwLock<MoviesLib>>,
@@ -55,6 +62,10 @@ impl App {
         });
 
         app.add_global_callback('q', Cursive::quit);
+
+        app.add_global_callback('?', |app| {
+            show_keybinds(app);
+        });
 
         app.add_fullscreen_layer(
             Dialog::new()
@@ -174,4 +185,20 @@ impl App {
 
         Self::update_movies_view(movies, s);
     }
+}
+
+fn show_keybinds(app: &mut Cursive) {
+    let dialog = Dialog::new().title("Keybinds").content(TextView::new(
+        HELP_KEYBINDS
+            .iter()
+            .map(|s| (*s).to_owned() + "\n")
+            .collect::<String>(),
+    ));
+
+    app.add_layer(OnEventView::new(dialog).on_pre_event(
+        Event::Key(cursive::event::Key::Esc),
+        |app| {
+            app.pop_layer();
+        },
+    ));
 }

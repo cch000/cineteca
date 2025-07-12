@@ -17,8 +17,9 @@ it to the previous one. If there are changes, the library will be updated
 
 ## Usage
 
-- Press 'w' toggle watched, 
+- Press 'w' toggle watched 
 - Press 'p' to play the movie (requires `mpv`)
+- Press '?' to show all keybinds
 
 More options will be added in the future
 ...
