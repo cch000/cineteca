@@ -1,6 +1,6 @@
 # movies-tui \[WIP\]
 
-Simple tui-based movie library to keep track of watched movies in a directory.
+TUI-based movie library to keep track of watched movies in a directory.
 
 ![](img/screenshot.png)
 
@@ -30,7 +30,7 @@ configuration inputs and declare it as a package to install, e.g., by adding it 
 ```
 ```Nix
   environment.systemPackages = [
-    inputs.merged-yet.packages.${pkgs.system}.merged-yet
+    inputs.movies-tui.packages.${pkgs.system}.movies-tui
   ];
 ```
 
@@ -39,8 +39,8 @@ For non-Nix users it is still possible to build the app from source using cargo.
 ```console
 cargo build -r
 ```
-A binary will appear under `./target/release`. 
-Make the program available on your `$PATH`, e.g., by moving it to `/usr/local/bin`.
+A binary will appear under `./target/release/`. 
+Make the program available on your `$PATH`, e.g., by moving it to `/usr/local/bin/`.
 
 ## Usage
 
