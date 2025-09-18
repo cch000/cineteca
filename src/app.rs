@@ -19,6 +19,7 @@ const HELP_KEYBINDS: &[&str] = &[
     "w -> mark as watched",
     "p -> play a movie",
     "? -> show this dialog",
+    "q -> quit",
     "ESC -> go back",
 ];
 
@@ -86,7 +87,7 @@ impl App {
     fn movies_view(&self) -> OnEventView<SelectView> {
         let mut select = SelectView::new();
         let movies = Arc::clone(&self.movies);
-        let movies_clone = Arc::clone(&self.movies);
+        let movies_play = Arc::clone(&self.movies);
 
         Self::update_movies_view(&movies, &mut select);
 
@@ -104,7 +105,7 @@ impl App {
                 Some(EventResult::Consumed(None))
             })
             .on_pre_event_inner('p', move |s, _| {
-                Self::play_movie(&movies_clone, s);
+                Self::play_movie(&movies_play, s);
                 Some(EventResult::Consumed(None))
             })
     }

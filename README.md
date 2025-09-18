@@ -44,6 +44,10 @@ Make the program available on your `$PATH`, e.g., by moving it to `/usr/local/bi
 
 ## Usage
 
+```console
+movies-tui /path/to/library #optional, default "."
+```
+
 - Press 'w' to mark/unmark as watched 
 - Press 'p' to play the movie (requires `mpv`)
 - Press '?' to show all keybinds

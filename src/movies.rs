@@ -26,30 +26,40 @@ pub struct Movie {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
+
 pub struct MoviesLib {
     pub movies: HashMap<String, (PathBuf, bool)>,
     hash: u64,
+
+    #[serde(skip)]
+    save_path: String,
 }
 
 impl MoviesLib {
     pub fn init(movies_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let current_hash = Self::hash_dir(movies_path);
+        let hash = Self::hash_dir(movies_path);
+        let save_path = format!("{movies_path}/{SAVE_FILE}");
 
-        let movies = if let Ok(saved_movies) = Self::load_movies_save() {
-            if current_hash == saved_movies.hash {
+        let movies = if let Some(saved_movies) = Self::load_saved_movies(&save_path) {
+            if hash == saved_movies.hash {
                 saved_movies
             } else {
-                Self::build_movies_lib(movies_path, Some(saved_movies), Some(current_hash))?
+                Self::build_movies_lib(
+                    movies_path,
+                    Some(&saved_movies),
+                    Some(hash),
+                    &save_path,
+                )?
             }
         } else {
-            Self::build_movies_lib(movies_path, None, None)?
+            Self::build_movies_lib(movies_path, None, None, &save_path)?
         };
         Ok(movies)
     }
 
     pub fn save_movies(&self) -> Result<(), Box<dyn Error>> {
         let json = serde_json::to_string_pretty(&self)?;
-        fs::write(SAVE_FILE, json)?;
+        fs::write(&self.save_path, json)?;
         Ok(())
     }
 
@@ -65,13 +75,14 @@ impl MoviesLib {
             .and_modify(|(_, watched)| *watched = true);
     }
 
-    fn load_movies_save() -> Result<Self, Box<dyn Error>> {
-        if Path::new(SAVE_FILE).exists() {
-            let json = fs::read_to_string(SAVE_FILE)?;
-            let movies: Self = serde_json::from_str(&json)?;
-            Ok(movies)
+    fn load_saved_movies(save_path: &String) -> Option<Self> {
+        if Path::new(save_path).exists() {
+            let json = fs::read_to_string(save_path).unwrap();
+
+            let movies = serde_json::from_str(&json).expect("Error parsing json");
+            Some(movies)
         } else {
-            Err("No saved movies or empty save file".into())
+            None
         }
     }
 
@@ -116,41 +127,45 @@ impl MoviesLib {
             .and_then(|fname| fname.to_owned().into_string().ok())?;
 
         // During rebuild we want to include all valid movies,
-        // so we don't filter based on existing_movies
+        // so we don't filter based on prev_movies
         Some((name, (path.to_path_buf(), false)))
     }
 
     fn build_movies_lib(
         movies_path: &str,
-        existing_movies: Option<Self>,
-        current_hash: Option<u64>,
+        prev_movies: Option<&Self>,
+        hash: Option<u64>,
+        save_path: &str,
     ) -> Result<Self, Box<dyn Error>> {
         Self::ffmpeg_init()?;
 
-        let mut current_movies: HashMap<String, (PathBuf, bool)> = WalkDir::new(movies_path)
+        let mut movies: HashMap<String, (PathBuf, bool)> = WalkDir::new(movies_path)
             .into_iter()
             .par_bridge()
             .filter_map(Result::ok)
             .filter_map(|entry: walkdir::DirEntry| Self::process_movie_entry(&entry))
             .collect();
 
-        if let Some(lib) = &existing_movies {
-            for (name, (_, watched)) in &lib.movies {
-                if let Some((_, existing_watched)) = current_movies.get_mut(name) {
-                    *existing_watched = *watched;
+        if let Some(prev) = &prev_movies {
+            for (name, (_, prev_watched)) in &prev.movies {
+                if let Some((_, watched)) = movies.get_mut(name) {
+                    *watched = *prev_watched;
                 }
             }
         }
 
-        match existing_movies {
-            Some(mut lib) => {
-                lib.movies = current_movies;
-                lib.hash = current_hash.unwrap();
-                Ok(lib)
-            }
+        let save_path = save_path.to_string();
+
+        match prev_movies {
+            Some(_) => Ok(Self {
+                movies,
+                hash: hash.unwrap(),
+                save_path,
+            }),
             None => Ok(Self {
-                movies: current_movies,
+                movies,
                 hash: Self::hash_dir(movies_path),
+                save_path,
             }),
         }
     }
