@@ -23,7 +23,7 @@ configuration inputs and declare it as a package to install, e.g., by adding it 
 ```Nix
   inputs = {
     cineteca = {
-      url = "github:cch000/movies";
+      url = "github:cch000/cineteca";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
