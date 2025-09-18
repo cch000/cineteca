@@ -1,5 +1,5 @@
 [package]
-name = "movies-tui"
+name = "cineteca"
 version = "0.1.0"
 edition = "2024"
 

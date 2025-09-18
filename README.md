@@ -1,6 +1,6 @@
-# movies-tui \[WIP\]
+# CINETECA \[WIP\]
 
-TUI-based movie library to keep track of watched movies in a directory.
+TUI movie library to keep track of watched movies in a directory and its subdirectories.
 
 ![](img/screenshot.png)
 
@@ -8,7 +8,7 @@ This screenshot shows a library with two movies. One of them is selected, and th
 
 ## How does it work?
 
-The movie library is generated automatically, filtering out files that might not be movies.
+The movie library (cineteca) is generated automatically, filtering out files that might not be movies.
 This is achieved by recursively reading all the files in the directory and discarding those
 that do not have a video extension or are short videos. The program also checks every time
 it is opened for changes in the directory, calculating a hash of the directory and comparing
@@ -22,7 +22,7 @@ configuration inputs and declare it as a package to install, e.g., by adding it 
 
 ```Nix
   inputs = {
-    movies-tui = {
+    cineteca = {
       url = "github:cch000/movies";
       inputs.nixpkgs.follows = "nixpkgs";
     };
@@ -30,7 +30,7 @@ configuration inputs and declare it as a package to install, e.g., by adding it 
 ```
 ```Nix
   environment.systemPackages = [
-    inputs.movies-tui.packages.${pkgs.system}.movies-tui
+    inputs.cineteca.packages.${pkgs.system}.cineteca
   ];
 ```
 
@@ -45,7 +45,7 @@ Make the program available on your `$PATH`, e.g., by moving it to `/usr/local/bi
 ## Usage
 
 ```console
-movies-tui /path/to/library #optional, default "."
+cineteca /path/to/library #optional, default "."
 ```
 
 - Press 'w' to mark/unmark as watched 

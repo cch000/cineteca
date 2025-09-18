@@ -88,6 +88,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "cineteca"
+version = "0.1.0"
+dependencies = [
+ "cursive",
+ "ffmpeg-next",
+ "rayon",
+ "serde",
+ "serde_json",
+ "walkdir",
+]
+
+[[package]]
 name = "clang-sys"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -463,18 +475,6 @@ dependencies = [
  "log",
  "wasi",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "movies-tui"
-version = "0.1.0"
-dependencies = [
- "cursive",
- "ffmpeg-next",
- "rayon",
- "serde",
- "serde_json",
- "walkdir",
 ]
 
 [[package]]

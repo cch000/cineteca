@@ -70,7 +70,7 @@ impl App {
 
         app.add_fullscreen_layer(
             Dialog::new()
-                .title("Movies Library")
+                .title("CINETECA")
                 .content(self.movies_view().scrollable())
                 .full_screen(),
         );

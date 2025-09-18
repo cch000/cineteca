@@ -1,5 +1,5 @@
 {
-  description = "A TUI application for movies";
+  description = "A TUI program for movies";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -12,7 +12,7 @@
     platforms = nixpkgs.lib.platforms.all;
     forAllplatforms = nixpkgs.lib.genAttrs platforms;
 
-    name = "movies-tui";
+    name = "cineteca";
 
     mkInputs = pkgs: {
       nativeBuildInputs = with pkgs; [
@@ -32,7 +32,7 @@
         pkgs = nixpkgs.legacyPackages.${platform};
         inputs = mkInputs pkgs;
 
-        movies-tui = pkgs.rustPlatform.buildRustPackage {
+        cineteca = pkgs.rustPlatform.buildRustPackage {
           inherit (inputs) nativeBuildInputs buildInputs;
           inherit name;
 
@@ -50,8 +50,8 @@
           };
         };
       in {
-        inherit movies-tui;
-        default = movies-tui;
+        inherit cineteca;
+        default = cineteca;
       }
     );
 
@@ -63,6 +63,11 @@
         default = pkgs.mkShell {
           inherit (inputs) nativeBuildInputs buildInputs;
           inputsFrom = [self.packages.${platform}.default];
+          packages = with pkgs; [
+            nixd
+            alejandra
+            rustfmt
+          ];
         };
       }
     );
