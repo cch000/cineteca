@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     error::Error,
     ffi::OsStr,
     fs,
@@ -8,7 +8,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use cursive::reexports::ahash::HashMap;
 use ffmpeg_next::log::Level::Quiet;
 use serde::{Deserialize, Serialize};
 use walkdir::{DirEntry, WalkDir};
@@ -33,28 +32,33 @@ pub struct MoviesLib {
 
     #[serde(skip)]
     save_path: String,
+    #[serde(skip)]
+    movies_path: String,
 }
 
 impl MoviesLib {
-    pub fn init(movies_path: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let hash = Self::hash_dir(movies_path);
+    pub fn init(movies_path: &str) -> Self {
         let save_path = format!("{movies_path}/{SAVE_FILE}");
 
-        let movies = if let Some(saved_movies) = Self::load_saved_movies(&save_path) {
-            if hash == saved_movies.hash {
-                saved_movies
-            } else {
-                Self::build_movies_lib(
-                    movies_path,
-                    Some(&saved_movies),
-                    Some(hash),
-                    &save_path,
-                )?
-            }
+        if let Some(mut saved_movies) = Self::load_saved_movies(&save_path) {
+            saved_movies.movies_path = movies_path.to_string();
+            saved_movies.save_path = save_path;
+            saved_movies
         } else {
-            Self::build_movies_lib(movies_path, None, None, &save_path)?
-        };
-        Ok(movies)
+            Self::build_movies_lib(movies_path, None, None, &save_path)
+        }
+    }
+
+    pub fn refresh(&mut self) {
+        let hash = Self::hash_dir(&self.movies_path);
+        if hash != self.hash {
+            *self = Self::build_movies_lib(
+                &self.movies_path,
+                Some(&self.movies),
+                Some(hash),
+                &self.save_path,
+            );
+        }
     }
 
     pub fn save_movies(&self) -> Result<(), Box<dyn Error>> {
@@ -133,11 +137,11 @@ impl MoviesLib {
 
     fn build_movies_lib(
         movies_path: &str,
-        prev_movies: Option<&Self>,
+        prev_movies: Option<&HashMap<String, (PathBuf, bool)>>,
         hash: Option<u64>,
         save_path: &str,
-    ) -> Result<Self, Box<dyn Error>> {
-        Self::ffmpeg_init()?;
+    ) -> Self {
+        Self::ffmpeg_init().expect("Failed to initialize ffmpeg");
 
         let mut movies: HashMap<String, (PathBuf, bool)> = WalkDir::new(movies_path)
             .into_iter()
@@ -146,8 +150,8 @@ impl MoviesLib {
             .filter_map(|entry: walkdir::DirEntry| Self::process_movie_entry(&entry))
             .collect();
 
-        if let Some(prev) = &prev_movies {
-            for (name, (_, prev_watched)) in &prev.movies {
+        if let Some(prev) = prev_movies {
+            for (name, (_, prev_watched)) in prev {
                 if let Some((_, watched)) = movies.get_mut(name) {
                     *watched = *prev_watched;
                 }
@@ -155,18 +159,21 @@ impl MoviesLib {
         }
 
         let save_path = save_path.to_string();
+        let movies_path = movies_path.to_string();
 
         match prev_movies {
-            Some(_) => Ok(Self {
+            Some(_) => Self {
                 movies,
                 hash: hash.unwrap(),
                 save_path,
-            }),
-            None => Ok(Self {
+                movies_path,
+            },
+            None => Self {
                 movies,
-                hash: Self::hash_dir(movies_path),
+                hash: Self::hash_dir(&movies_path),
                 save_path,
-            }),
+                movies_path,
+            },
         }
     }
 

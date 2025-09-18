@@ -2,15 +2,18 @@ use cursive::{
     Cursive, With,
     event::{Event, EventResult},
     theme::{BorderStyle, Palette},
-    view::{Resizable, Scrollable},
-    views::{Dialog, OnEventView, ScrollView, SelectView, TextView},
+    view::{Nameable, Resizable, Scrollable},
+    views::{Dialog, NamedView, OnEventView, ScrollView, SelectView, TextView},
 };
 use movies::MoviesLib;
 
 use std::{
+    collections::HashMap,
     error::Error,
+    path::PathBuf,
     process::{Command, Stdio},
     sync::{Arc, RwLock},
+    thread,
 };
 
 use crate::movies;
@@ -28,16 +31,16 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(path: &str) -> Result<Self, Box<dyn Error>> {
-        Ok(Self {
-            movies: Arc::new(RwLock::new(MoviesLib::init(path)?)),
-        })
+    pub fn new(path: &str) -> Self {
+        Self {
+            movies: Arc::new(RwLock::new(MoviesLib::init(path))),
+        }
     }
 
     pub fn run(&self) -> Result<(), Box<dyn Error>> {
-        let mut app = cursive::default();
+        let mut siv = cursive::default();
 
-        app.set_theme(cursive::theme::Theme {
+        siv.set_theme(cursive::theme::Theme {
             shadow: true,
             borders: BorderStyle::Simple,
             palette: Palette::retro().with(|palette| {
@@ -62,20 +65,41 @@ impl App {
             }),
         });
 
-        app.add_global_callback('q', Cursive::quit);
+        siv.add_global_callback('q', Cursive::quit);
 
-        app.add_global_callback('?', |app| {
-            show_keybinds(app);
+        siv.add_global_callback('?', |siv| {
+            show_keybinds(siv);
         });
 
-        app.add_fullscreen_layer(
+        siv.add_fullscreen_layer(
             Dialog::new()
                 .title("CINETECA")
                 .content(self.movies_view())
                 .full_screen(),
         );
 
-        app.run();
+        let movies_refresh = Arc::clone(&self.movies);
+        let cb = siv.cb_sink().clone();
+
+        thread::spawn(move || {
+            let movies;
+
+            if let Ok(mut movies_lock) = movies_refresh.write() {
+                movies_lock.refresh();
+                movies = movies_lock.clone();
+            } else {
+                return;
+            }
+
+            cb.send(Box::new(move |siv: &mut Cursive| {
+                siv.call_on_all_named("movies_select", |view: &mut SelectView<String>| {
+                    App::update_movies_view(&movies.movies, view);
+                });
+            }))
+            .ok();
+        });
+
+        siv.run();
 
         if let Ok(movies) = self.movies.read() {
             movies.save_movies()?;
@@ -84,32 +108,36 @@ impl App {
         Ok(())
     }
 
-    fn movies_view(&self) -> OnEventView<ScrollView<SelectView>> {
-        let mut select = SelectView::new();
-        Self::update_movies_view(&self.movies, &mut select);
+    fn movies_view(&self) -> OnEventView<ScrollView<NamedView<SelectView>>> {
+        let mut select = SelectView::new().with_name("movies_select");
 
-        let movies = Arc::clone(&self.movies); // Only clone for closures that need ownership
+        if let Ok(movies) = self.movies.write() {
+            Self::update_movies_view(&movies.movies, &mut select.get_mut());
+        }
+
+        let movies = Arc::clone(&self.movies);
         let movies_play = Arc::clone(&self.movies);
+        let scrollable_select = select.scrollable().scroll_x(true);
 
-        OnEventView::new(select.scrollable().scroll_x(true))
+        OnEventView::new(scrollable_select)
             .on_pre_event_inner('h', |s, _| Some(s.scroll_to_left()))
             .on_pre_event_inner('l', |s, _| Some(s.scroll_to_right()))
             .on_pre_event_inner('j', |s, _| {
-                let cb = s.get_inner_mut().select_down(1);
+                let cb = s.get_inner_mut().get_mut().select_down(1);
                 s.scroll_to_important_area();
                 Some(EventResult::Consumed(Some(cb)))
             })
             .on_pre_event_inner('k', |s, _| {
-                let cb = s.get_inner_mut().select_up(1);
+                let cb = s.get_inner_mut().get_mut().select_up(1);
                 s.scroll_to_important_area();
                 Some(EventResult::Consumed(Some(cb)))
             })
             .on_pre_event_inner('w', move |s, _| {
-                Self::update_watched(&movies, s.get_inner_mut()).ok();
+                Self::update_watched(&movies, &mut s.get_inner_mut().get_mut()).ok();
                 Some(EventResult::Consumed(None))
             })
             .on_pre_event_inner('p', move |s, _| {
-                Self::play_movie(&movies_play, s.get_inner_mut());
+                Self::play_movie(&movies_play, &mut s.get_inner_mut().get_mut());
                 Some(EventResult::Consumed(None))
             })
     }
@@ -122,39 +150,43 @@ impl App {
         let name = selected.and_then(|id| view.get_item(id).map(|(_, name)| name)); // Get the actual movie name
 
         if let Some(name) = name {
-            if let Ok(mut lib) = movies.write() {
-                lib.toggle_watched(name);
-                lib.save_movies()?;
+            if let Ok(mut movies) = movies.write() {
+                movies.toggle_watched(name);
+                movies.save_movies()?;
+
+                let movies = &movies.movies;
+
+                Self::update_movies_view(movies, view);
             }
         }
 
-        Self::update_movies_view(movies, view);
         Ok(())
     }
 
-    fn update_movies_view(movies: &Arc<RwLock<MoviesLib>>, view: &mut SelectView<String>) {
+    fn update_movies_view(
+        movies: &HashMap<std::string::String, (PathBuf, bool)>,
+        view: &mut SelectView<String>,
+    ) {
         let selected = view.selected_id();
 
-        if let Ok(lib) = movies.read() {
-            let mut items: Vec<_> = lib.movies.iter().collect();
+        let mut items: Vec<_> = movies.iter().collect();
 
-            items.sort_by(|(a_name, a_data), (b_name, b_data)| {
-                a_data
-                    .1
-                    .cmp(&b_data.1)
-                    .then_with(|| a_name.to_lowercase().cmp(&b_name.to_lowercase()))
-            });
+        items.sort_by(|(a_name, a_data), (b_name, b_data)| {
+            a_data
+                .1
+                .cmp(&b_data.1)
+                .then_with(|| a_name.to_lowercase().cmp(&b_name.to_lowercase()))
+        });
 
-            view.clear();
+        view.clear();
 
-            for (name, (_, watched)) in items {
-                let display_name = if *watched {
-                    format!("[WATCHED] {name}")
-                } else {
-                    name.clone()
-                };
-                view.add_item(display_name, name.clone());
-            }
+        for (name, (_, watched)) in items {
+            let display_name = if *watched {
+                format!("[WATCHED] {name}")
+            } else {
+                name.clone()
+            };
+            view.add_item(display_name, name.clone());
         }
 
         if let Some(selected) = selected {
@@ -171,9 +203,11 @@ impl App {
         };
 
         {
-            let Ok(mut lib) = movies.write() else { return };
+            let Ok(mut movies) = movies.write() else {
+                return;
+            };
 
-            let Some((path, _)) = lib.movies.get(name) else {
+            let Some((path, _)) = movies.movies.get(name) else {
                 return;
             };
 
@@ -184,15 +218,15 @@ impl App {
                 .spawn()
                 .ok();
 
-            lib.set_watched(name);
-            lib.save_movies().ok();
-        }
+            movies.set_watched(name);
+            movies.save_movies().ok();
 
-        Self::update_movies_view(movies, s);
+            Self::update_movies_view(&movies.movies, s);
+        }
     }
 }
 
-fn show_keybinds(app: &mut Cursive) {
+fn show_keybinds(siv: &mut Cursive) {
     let dialog = Dialog::new().title("Keybinds").content(TextView::new(
         HELP_KEYBINDS
             .iter()
@@ -200,7 +234,7 @@ fn show_keybinds(app: &mut Cursive) {
             .collect::<String>(),
     ));
 
-    app.add_layer(OnEventView::new(dialog).on_pre_event(
+    siv.add_layer(OnEventView::new(dialog).on_pre_event(
         Event::Key(cursive::event::Key::Esc),
         |app| {
             app.pop_layer();

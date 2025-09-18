@@ -17,7 +17,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         None => ".".to_string(),
     };
 
-    App::new(&path)?.run()?;
+    App::new(&path).run()?;
 
     Ok(())
 }
