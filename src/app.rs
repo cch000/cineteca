@@ -3,7 +3,7 @@ use cursive::{
     event::{Event, EventResult},
     theme::{BorderStyle, Palette},
     view::{Resizable, Scrollable},
-    views::{Dialog, OnEventView, SelectView, TextView},
+    views::{Dialog, OnEventView, ScrollView, SelectView, TextView},
 };
 use movies::MoviesLib;
 
@@ -71,7 +71,7 @@ impl App {
         app.add_fullscreen_layer(
             Dialog::new()
                 .title("CINETECA")
-                .content(self.movies_view().scrollable())
+                .content(self.movies_view())
                 .full_screen(),
         );
 
@@ -84,28 +84,32 @@ impl App {
         Ok(())
     }
 
-    fn movies_view(&self) -> OnEventView<SelectView> {
+    fn movies_view(&self) -> OnEventView<ScrollView<SelectView>> {
         let mut select = SelectView::new();
-        let movies = Arc::clone(&self.movies);
+        Self::update_movies_view(&self.movies, &mut select);
+
+        let movies = Arc::clone(&self.movies); // Only clone for closures that need ownership
         let movies_play = Arc::clone(&self.movies);
 
-        Self::update_movies_view(&movies, &mut select);
-
-        OnEventView::new(select)
-            .on_pre_event_inner('k', |s, _| {
-                let cb = s.select_up(1);
+        OnEventView::new(select.scrollable().scroll_x(true))
+            .on_pre_event_inner('h', |s, _| Some(s.scroll_to_left()))
+            .on_pre_event_inner('l', |s, _| Some(s.scroll_to_right()))
+            .on_pre_event_inner('j', |s, _| {
+                let cb = s.get_inner_mut().select_down(1);
+                s.scroll_to_important_area();
                 Some(EventResult::Consumed(Some(cb)))
             })
-            .on_pre_event_inner('j', |s, _| {
-                let cb = s.select_down(1);
+            .on_pre_event_inner('k', |s, _| {
+                let cb = s.get_inner_mut().select_up(1);
+                s.scroll_to_important_area();
                 Some(EventResult::Consumed(Some(cb)))
             })
             .on_pre_event_inner('w', move |s, _| {
-                Self::update_watched(&movies, s).ok();
+                Self::update_watched(&movies, s.get_inner_mut()).ok();
                 Some(EventResult::Consumed(None))
             })
             .on_pre_event_inner('p', move |s, _| {
-                Self::play_movie(&movies_play, s);
+                Self::play_movie(&movies_play, s.get_inner_mut());
                 Some(EventResult::Consumed(None))
             })
     }
