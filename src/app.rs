@@ -8,9 +8,7 @@ use cursive::{
 use movies::MoviesLib;
 
 use std::{
-    collections::HashMap,
     error::Error,
-    path::PathBuf,
     process::{Command, Stdio},
     sync::{Arc, RwLock},
     thread,
@@ -82,18 +80,15 @@ impl App {
         let cb = siv.cb_sink().clone();
 
         thread::spawn(move || {
-            let movies;
-
             if let Ok(mut movies_lock) = movies_refresh.write() {
                 movies_lock.refresh();
-                movies = movies_lock.clone();
             } else {
                 return;
             }
 
             cb.send(Box::new(move |siv: &mut Cursive| {
                 siv.call_on_all_named("movies_select", |view: &mut SelectView<String>| {
-                    App::update_movies_view(&movies.movies, view);
+                    App::update_movies_view(&movies_refresh, view);
                 });
             }))
             .ok();
@@ -111,9 +106,7 @@ impl App {
     fn movies_view(&self) -> OnEventView<ScrollView<NamedView<SelectView>>> {
         let mut select = SelectView::new().with_name("movies_select");
 
-        if let Ok(movies) = self.movies.write() {
-            Self::update_movies_view(&movies.movies, &mut select.get_mut());
-        }
+        Self::update_movies_view(&self.movies, &mut select.get_mut());
 
         let movies = Arc::clone(&self.movies);
         let movies_play = Arc::clone(&self.movies);
@@ -153,40 +146,36 @@ impl App {
             if let Ok(mut movies) = movies.write() {
                 movies.toggle_watched(name);
                 movies.save_movies()?;
-
-                let movies = &movies.movies;
-
-                Self::update_movies_view(movies, view);
             }
         }
 
+        Self::update_movies_view(movies, view);
         Ok(())
     }
 
-    fn update_movies_view(
-        movies: &HashMap<std::string::String, (PathBuf, bool)>,
-        view: &mut SelectView<String>,
-    ) {
+    fn update_movies_view(movies: &Arc<RwLock<MoviesLib>>, view: &mut SelectView<String>) {
         let selected = view.selected_id();
 
-        let mut items: Vec<_> = movies.iter().collect();
+        if let Ok(lib) = movies.read() {
+            let mut items: Vec<_> = lib.movies.iter().collect();
 
-        items.sort_by(|(a_name, a_data), (b_name, b_data)| {
-            a_data
-                .1
-                .cmp(&b_data.1)
-                .then_with(|| a_name.to_lowercase().cmp(&b_name.to_lowercase()))
-        });
+            items.sort_by(|(a_name, a_data), (b_name, b_data)| {
+                a_data
+                    .1
+                    .cmp(&b_data.1)
+                    .then_with(|| a_name.to_lowercase().cmp(&b_name.to_lowercase()))
+            });
 
-        view.clear();
+            view.clear();
 
-        for (name, (_, watched)) in items {
-            let display_name = if *watched {
-                format!("[WATCHED] {name}")
-            } else {
-                name.clone()
-            };
-            view.add_item(display_name, name.clone());
+            for (name, (_, watched)) in items {
+                let display_name = if *watched {
+                    format!("[WATCHED] {name}")
+                } else {
+                    name.clone()
+                };
+                view.add_item(display_name, name.clone());
+            }
         }
 
         if let Some(selected) = selected {
@@ -207,6 +196,9 @@ impl App {
                 return;
             };
 
+            movies.set_watched(name);
+            movies.save_movies().ok();
+
             let Some((path, _)) = movies.movies.get(name) else {
                 return;
             };
@@ -217,12 +209,9 @@ impl App {
                 .stderr(Stdio::null())
                 .spawn()
                 .ok();
-
-            movies.set_watched(name);
-            movies.save_movies().ok();
-
-            Self::update_movies_view(&movies.movies, s);
         }
+
+        Self::update_movies_view(movies, s);
     }
 }
 
