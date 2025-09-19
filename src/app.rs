@@ -88,7 +88,7 @@ impl App {
 
             cb.send(Box::new(move |siv: &mut Cursive| {
                 siv.call_on_all_named("movies_select", |view: &mut SelectView<String>| {
-                    App::update_movies_view(&movies_refresh, view);
+                    Self::update_movies_view(&movies_refresh, view);
                 });
             }))
             .ok();
@@ -159,22 +159,21 @@ impl App {
         if let Ok(lib) = movies.read() {
             let mut items: Vec<_> = lib.movies.iter().collect();
 
-            items.sort_by(|(a_name, a_data), (b_name, b_data)| {
-                a_data
-                    .1
-                    .cmp(&b_data.1)
-                    .then_with(|| a_name.to_lowercase().cmp(&b_name.to_lowercase()))
+            items.sort_by(|a, b| {
+                a.watched
+                    .cmp(&b.watched)
+                    .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
             });
 
             view.clear();
 
-            for (name, (_, watched)) in items {
-                let display_name = if *watched {
-                    format!("[WATCHED] {name}")
+            for movie in items {
+                let display_name = if movie.watched {
+                    format!("[WATCHED] {}", movie.name)
                 } else {
-                    name.clone()
+                    movie.name.clone()
                 };
-                view.add_item(display_name, name.clone());
+                view.add_item(display_name, movie.name.clone());
             }
         }
 
@@ -199,9 +198,7 @@ impl App {
             movies.set_watched(name);
             movies.save_movies().ok();
 
-            let Some((path, _)) = movies.movies.get(name) else {
-                return;
-            };
+            let path = movies.get_path(name);
 
             Command::new("mpv")
                 .arg(path)

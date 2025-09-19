@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     error::Error,
     ffi::OsStr,
     fs,
@@ -12,7 +12,7 @@ use ffmpeg_next::log::Level::Quiet;
 use serde::{Deserialize, Serialize};
 use walkdir::{DirEntry, WalkDir};
 
-use rayon::iter::{ParallelBridge, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelExtend, ParallelIterator};
 
 const SAVE_FILE: &str = ".movies.json";
 const EXTENSIONS: [&str; 4] = ["mkv", "mp4", "avi", "mov"];
@@ -27,7 +27,7 @@ pub struct Movie {
 #[derive(Serialize, Deserialize, Clone)]
 
 pub struct MoviesLib {
-    pub movies: HashMap<String, (PathBuf, bool)>,
+    pub movies: Vec<Movie>,
     hash: u64,
 
     #[serde(skip)]
@@ -54,7 +54,7 @@ impl MoviesLib {
         if hash != self.hash {
             *self = Self::build_movies_lib(
                 &self.movies_path,
-                Some(&self.movies),
+                Some(&mut self.movies),
                 Some(hash),
                 &self.save_path,
             );
@@ -68,15 +68,26 @@ impl MoviesLib {
     }
 
     pub fn toggle_watched(&mut self, name: &str) {
+        let index = self.get_index(name);
+        let movie = self.movies.get_mut(index).unwrap();
+
+        movie.watched = movie.watched.not();
+    }
+
+    fn get_index(&self, name: &str) -> usize {
         self.movies
-            .entry(name.to_owned())
-            .and_modify(|(_, watched)| *watched = watched.not());
+            .binary_search_by_key(&name, |movie| &movie.name)
+            .unwrap()
+    }
+
+    pub fn get_path(&self, name: &str) -> PathBuf {
+        let index = self.get_index(name);
+        self.movies.get(index).unwrap().path.clone()
     }
 
     pub fn set_watched(&mut self, name: &str) {
-        self.movies
-            .entry(name.to_owned())
-            .and_modify(|(_, watched)| *watched = true);
+        let index = self.get_index(name);
+        self.movies.get_mut(index).unwrap().watched = true;
     }
 
     fn load_saved_movies(save_path: &String) -> Option<Self> {
@@ -117,7 +128,7 @@ impl MoviesLib {
         }
     }
 
-    fn process_movie_entry(entry: &DirEntry) -> Option<(String, (PathBuf, bool))> {
+    fn process_movie_entry(entry: &DirEntry) -> Option<Movie> {
         let path = entry.path();
 
         let extensions: HashSet<&OsStr> = EXTENSIONS.iter().map(OsStr::new).collect();
@@ -130,50 +141,51 @@ impl MoviesLib {
             .file_name()
             .and_then(|fname| fname.to_owned().into_string().ok())?;
 
-        // During rebuild we want to include all valid movies,
-        // so we don't filter based on prev_movies
-        Some((name, (path.to_path_buf(), false)))
+        Some(Movie {
+            name,
+            path: path.to_path_buf(),
+            watched: false,
+        })
     }
 
     fn build_movies_lib(
         movies_path: &str,
-        prev_movies: Option<&HashMap<String, (PathBuf, bool)>>,
+        prev_movies: Option<&mut Vec<Movie>>,
         hash: Option<u64>,
         save_path: &str,
     ) -> Self {
         Self::ffmpeg_init().expect("Failed to initialize ffmpeg");
 
-        let mut movies: HashMap<String, (PathBuf, bool)> = WalkDir::new(movies_path)
+        let movies: Vec<Movie> = WalkDir::new(movies_path)
             .into_iter()
             .par_bridge()
             .filter_map(Result::ok)
             .filter_map(|entry: walkdir::DirEntry| Self::process_movie_entry(&entry))
             .collect();
 
-        if let Some(prev) = prev_movies {
-            for (name, (_, prev_watched)) in prev {
-                if let Some((_, watched)) = movies.get_mut(name) {
-                    *watched = *prev_watched;
-                }
-            }
-        }
-
-        let save_path = save_path.to_string();
         let movies_path = movies_path.to_string();
+        let save_path = save_path.to_string();
 
-        match prev_movies {
-            Some(_) => Self {
-                movies,
-                hash: hash.unwrap(),
-                save_path,
-                movies_path,
-            },
-            None => Self {
+        let Some(prev) = prev_movies else {
+            return Self {
                 movies,
                 hash: Self::hash_dir(&movies_path),
                 save_path,
                 movies_path,
-            },
+            };
+        };
+
+        prev.retain(|item| movies.clone().into_par_iter().any(|m| m.name == item.name));
+
+        prev.par_extend(movies);
+        prev.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| b.watched.cmp(&a.watched)));
+        prev.dedup_by(|a, b| b.name == a.name);
+
+        Self {
+            movies: prev.clone(),
+            hash: hash.unwrap(),
+            save_path,
+            movies_path,
         }
     }
 
