@@ -12,7 +12,10 @@ use ffmpeg_next::log::Level::Quiet;
 use serde::{Deserialize, Serialize};
 use walkdir::{DirEntry, WalkDir};
 
-use rayon::iter::{IntoParallelIterator, ParallelBridge, ParallelExtend, ParallelIterator};
+use rayon::{
+    iter::{IntoParallelIterator, ParallelBridge, ParallelExtend, ParallelIterator},
+    slice::ParallelSliceMut,
+};
 
 const SAVE_FILE: &str = ".movies.json";
 const EXTENSIONS: [&str; 4] = ["mkv", "mp4", "avi", "mov"];
@@ -178,7 +181,7 @@ impl MoviesLib {
         prev.retain(|item| movies.clone().into_par_iter().any(|m| m.name == item.name));
 
         prev.par_extend(movies);
-        prev.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| b.watched.cmp(&a.watched)));
+        prev.par_sort_by(|a, b| a.name.cmp(&b.name).then_with(|| b.watched.cmp(&a.watched)));
         prev.dedup_by(|a, b| b.name == a.name);
 
         Self {

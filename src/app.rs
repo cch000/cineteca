@@ -6,6 +6,7 @@ use cursive::{
     views::{Dialog, NamedView, OnEventView, ScrollView, SelectView, TextView},
 };
 use movies::MoviesLib;
+use rayon::slice::ParallelSliceMut;
 
 use std::{
     error::Error,
@@ -159,7 +160,7 @@ impl App {
         if let Ok(lib) = movies.read() {
             let mut items: Vec<_> = lib.movies.iter().collect();
 
-            items.sort_by(|a, b| {
+            items.par_sort_by(|a, b| {
                 a.watched
                     .cmp(&b.watched)
                     .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
