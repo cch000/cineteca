@@ -8,7 +8,7 @@ target/
 
 **/*.rs.bk
 
-
+massif.out.*
 
 # Added by cargo
 
