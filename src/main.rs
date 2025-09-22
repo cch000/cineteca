@@ -1,5 +1,6 @@
 mod app;
-mod movies;
+mod movies_archive;
+mod movies_collector;
 
 use std::{env, error::Error};
 

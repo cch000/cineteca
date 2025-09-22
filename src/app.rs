@@ -1,11 +1,11 @@
 use cursive::{
-    Cursive, With,
     event::{Event, EventResult},
     theme::{BorderStyle, Palette},
     view::{Nameable, Resizable, Scrollable},
     views::{Dialog, NamedView, OnEventView, ScrollView, SelectView, TextView},
+    Cursive, With,
 };
-use movies::MoviesLib;
+use movies_archive::MoviesArchive;
 use rayon::slice::ParallelSliceMut;
 
 use std::{
@@ -15,7 +15,7 @@ use std::{
     thread,
 };
 
-use crate::movies;
+use crate::movies_archive;
 
 const HELP_KEYBINDS: &[&str] = &[
     "w -> mark as watched",
@@ -26,13 +26,13 @@ const HELP_KEYBINDS: &[&str] = &[
 ];
 
 pub struct App {
-    movies: Arc<RwLock<MoviesLib>>,
+    movies: Arc<RwLock<MoviesArchive>>,
 }
 
 impl App {
     pub fn new(path: &str) -> Self {
         Self {
-            movies: Arc::new(RwLock::new(MoviesLib::init(path))),
+            movies: Arc::new(RwLock::new(MoviesArchive::init(path))),
         }
     }
 
@@ -87,8 +87,8 @@ impl App {
                 return;
             }
 
-            cb.send(Box::new(move |siv: &mut Cursive| {
-                siv.call_on_all_named("movies_select", |view: &mut SelectView<String>| {
+            cb.send(Box::new(move |siv| {
+                siv.call_on_name("movies_select", |view: &mut SelectView<String>| {
                     Self::update_movies_view(&movies_refresh, view);
                 });
             }))
@@ -137,7 +137,7 @@ impl App {
     }
 
     fn update_watched(
-        movies: &Arc<RwLock<MoviesLib>>,
+        movies: &Arc<RwLock<MoviesArchive>>,
         view: &mut SelectView<String>,
     ) -> Result<(), Box<dyn Error>> {
         let selected = view.selected_id();
@@ -154,11 +154,11 @@ impl App {
         Ok(())
     }
 
-    fn update_movies_view(movies: &Arc<RwLock<MoviesLib>>, view: &mut SelectView<String>) {
+    fn update_movies_view(movies: &Arc<RwLock<MoviesArchive>>, view: &mut SelectView<String>) {
         let selected = view.selected_id();
 
-        if let Ok(lib) = movies.read() {
-            let mut items: Vec<_> = lib.movies.iter().collect();
+        if let Ok(archive) = movies.read() {
+            let mut items: Vec<_> = archive.movies.iter().collect();
 
             items.par_sort_by(|a, b| {
                 a.watched
@@ -183,7 +183,7 @@ impl App {
         }
     }
 
-    fn play_movie(movies: &Arc<RwLock<MoviesLib>>, s: &mut SelectView) {
+    fn play_movie(movies: &Arc<RwLock<MoviesArchive>>, s: &mut SelectView) {
         let Some(name) = s
             .selected_id()
             .and_then(|id| s.get_item(id).map(|(_, name)| name))
