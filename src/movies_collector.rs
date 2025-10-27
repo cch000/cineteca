@@ -36,8 +36,8 @@ impl MovieCollector {
             .collect();
 
         // One chunk per cpu thread
-        let num_chunks = thread::available_parallelism().unwrap().get();
-        let chunk_size = entries.len().div_ceil(num_chunks);
+        let max_chunks = thread::available_parallelism().unwrap().get();
+        let chunk_size = entries.len().div_ceil(max_chunks);
 
         let (tx, rx) = mpsc::channel();
 
@@ -58,11 +58,13 @@ impl MovieCollector {
             })
             .collect();
 
+       let spawned_threads = handles.len(); 
+
         for h in handles {
             h.join().unwrap();
         }
 
-        let mut movies: Vec<Movie> = rx.iter().take(num_chunks).flatten().collect();
+        let mut movies: Vec<Movie> = rx.iter().take(spawned_threads).flatten().collect();
 
         movies.par_sort_by(|a, b| a.name.cmp(&b.name));
 
