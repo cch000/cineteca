@@ -1,16 +1,15 @@
 use cursive::{
+    Cursive, With,
     event::{Event, EventResult},
     theme::{BorderStyle, Palette},
     view::{Nameable, Resizable, Scrollable},
     views::{Dialog, NamedView, OnEventView, ScrollView, SelectView, TextView},
-    Cursive, With,
 };
 use movies_archive::MoviesArchive;
 use rayon::slice::ParallelSliceMut;
 
 use std::{
     error::Error,
-    process::{Command, Stdio},
     sync::{Arc, RwLock},
     thread,
 };
@@ -201,13 +200,8 @@ impl App {
 
             let path = movies.get_path(name);
 
-            Command::new("mpv")
-                .arg(path)
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .spawn()
-                .ok();
-        }
+            open::that_detached(path).ok();
+        };
 
         Self::update_movies_view(movies, s);
     }

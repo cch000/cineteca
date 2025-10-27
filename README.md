@@ -45,11 +45,11 @@ Make the program available on your `$PATH`, e.g., by moving it to `/usr/local/bi
 ## Usage
 
 ```console
-cineteca /path/to/library #optional, default "."
+cineteca [path/to/library] #default is "."
 ```
 
 - Press 'w' to mark/unmark as watched 
-- Press 'p' to play the movie (requires `mpv`)
+- Press 'p' to play the movie (set default with `xdg-mime`)
 - Press '?' to show all keybinds
 
 More options will be added in the future
