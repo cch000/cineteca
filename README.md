@@ -16,6 +16,18 @@ it is opened for changes in the directory, calculating a hash of the directory a
 it to the previous one. If there are changes, the library will be updated 
 (e.g., if a new movie has been added or removed). 
 
+## Dependencies
+
+build:
+
+- rust :/
+- ffmpeg
+
+runtime:
+
+- xdg-open
+- xdg-mime (to set defaults)
+
 ## Install
 
 Nix users can take advantage of the flake provided in this repo. Add the flake to your
