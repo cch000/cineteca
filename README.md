@@ -18,17 +18,15 @@ it to the previous one. If there are changes, the library will be updated
 
 ## Dependencies
 
-build:
+To build from source check the [build](#build-from-source) section.
 
-- rust :/
-- ffmpeg
-
-runtime:
+This program requires the following dependencies to be available
+during runtime:
 
 - xdg-open
-- xdg-mime (to set defaults)
+- xdg-mime (to set the default video player)
 
-## Install
+## Nix
 
 Nix users can take advantage of the flake provided in this repo. Add the flake to your
 configuration inputs and declare it as a package to install, e.g., by adding it to systemPackages.
@@ -47,14 +45,6 @@ configuration inputs and declare it as a package to install, e.g., by adding it 
   ];
 ```
 
-For non-Nix users it is still possible to build the app from source using cargo.
-
-```console
-cargo build -r
-```
-A binary will appear under `./target/release/`. 
-Make the program available on your `$PATH`, e.g., by moving it to `/usr/local/bin/`.
-
 ## Usage
 
 ```console
@@ -67,3 +57,27 @@ cineteca [path/to/library] #default is "."
 
 More options will be added in the future
 ...
+
+
+## Build from source
+
+For non-Nix users it is still possible to build the app from source using cargo. 
+
+Dependencies: 
+
+- clang
+- pkg-config
+- FFmpeg libraries (including development headers)
+
+On fedora:
+
+```console
+dnf install llvm pkg-config ffmpeg-devel
+```
+
+```console
+cargo build -r
+```
+A binary will appear under `./target/release/`. 
+Make the program available on your `$PATH`, e.g., by moving it to `/usr/local/bin/`.
+
