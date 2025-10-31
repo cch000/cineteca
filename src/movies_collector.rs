@@ -58,7 +58,7 @@ impl MovieCollector {
             })
             .collect();
 
-       let spawned_threads = handles.len(); 
+        let spawned_threads = handles.len();
 
         for h in handles {
             h.join().unwrap();

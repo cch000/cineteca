@@ -9,8 +9,8 @@
     self,
     nixpkgs,
   }: let
-    platforms = nixpkgs.lib.platforms.all;
-    forAllplatforms = nixpkgs.lib.genAttrs platforms;
+    systems = nixpkgs.lib.systems.flakeExposed;
+    forAllsystems = nixpkgs.lib.genAttrs systems;
 
     name = "cineteca";
 
@@ -27,9 +27,9 @@
       ];
     };
   in {
-    packages = forAllplatforms (
-      platform: let
-        pkgs = nixpkgs.legacyPackages.${platform};
+    packages = forAllsystems (
+      system: let
+        pkgs = nixpkgs.legacyPackages.${system};
         inputs = mkInputs pkgs;
 
         cineteca = pkgs.rustPlatform.buildRustPackage {
@@ -43,7 +43,7 @@
           cargoLock.lockFile = ./Cargo.lock;
 
           meta = with pkgs.lib; {
-            inherit platforms;
+            inherit systems;
             description = "TUI application for movies";
             maintainers = ["cch000"];
             license = licenses.gpl3Plus;
@@ -55,18 +55,33 @@
       }
     );
 
-    devShells = forAllplatforms (
-      platform: let
-        pkgs = nixpkgs.legacyPackages.${platform};
+    formatter = forAllsystems (
+      system: let
+        pkgs = nixpkgs.legacyPackages.${system};
+      in
+        pkgs.writeShellApplication {
+          name = "format";
+          text = ''
+            echo "Formatting Nix files..."
+            find . -name "*.nix" -exec alejandra {} + > /dev/null 2>&1
+            echo "Formatting Rust files..."
+            find . -name "*.rs" -exec rustfmt {} +
+          '';
+        }
+    );
+
+    devShells = forAllsystems (
+      system: let
+        pkgs = nixpkgs.legacyPackages.${system};
         inputs = mkInputs pkgs;
       in {
         default = pkgs.mkShell {
           inherit (inputs) nativeBuildInputs buildInputs;
-          inputsFrom = [self.packages.${platform}.default];
+          inputsFrom = [self.packages.${system}.default];
           packages = with pkgs; [
             nixd
-            alejandra
             rustfmt
+            alejandra
           ];
         };
       }

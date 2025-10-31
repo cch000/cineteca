@@ -1,9 +1,9 @@
 use cursive::{
-    Cursive, With,
     event::{Event, EventResult},
     theme::{BorderStyle, Palette},
     view::{Nameable, Resizable, Scrollable},
     views::{Dialog, NamedView, OnEventView, ScrollView, SelectView, TextView},
+    Cursive, With,
 };
 use movies_archive::MoviesArchive;
 use rayon::slice::ParallelSliceMut;
