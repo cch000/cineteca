@@ -9,10 +9,6 @@ use std::{
 };
 
 use ffmpeg_next::log::Level::Quiet;
-use rayon::{
-    iter::{ParallelBridge, ParallelIterator},
-    slice::ParallelSliceMut,
-};
 use walkdir::{DirEntry, WalkDir};
 
 use crate::movies_archive::Movie;
@@ -31,7 +27,6 @@ impl MovieCollector {
 
         let entries: Vec<_> = WalkDir::new(movies_path)
             .into_iter()
-            .par_bridge()
             .filter_map(Result::ok)
             .collect();
 
@@ -66,7 +61,7 @@ impl MovieCollector {
 
         let mut movies: Vec<Movie> = rx.iter().take(spawned_threads).flatten().collect();
 
-        movies.par_sort_by(|a, b| a.name.cmp(&b.name));
+        movies.sort_by(|a, b| a.name.cmp(&b.name));
 
         movies.hash(&mut hash);
 

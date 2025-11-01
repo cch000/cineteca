@@ -11,11 +11,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::movies_collector::MovieCollector;
 
-use rayon::{
-    iter::{IntoParallelIterator, ParallelExtend, ParallelIterator},
-    slice::ParallelSliceMut,
-};
-
 const SAVE_FILE: &str = ".movies.json";
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Hash)]
@@ -124,10 +119,10 @@ impl MoviesArchive {
 
         let movies = movies.unwrap();
 
-        prev.retain(|item| movies.clone().into_par_iter().any(|m| m.name == item.name));
+        prev.retain(|item| movies.clone().iter().any(|m| m.name == item.name));
 
-        prev.par_extend(movies.clone());
-        prev.par_sort_by(|a, b| a.name.cmp(&b.name).then_with(|| b.watched.cmp(&a.watched)));
+        prev.extend(movies.clone());
+        prev.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| b.watched.cmp(&a.watched)));
         prev.dedup_by(|a, b| b.name == a.name);
 
         Self {

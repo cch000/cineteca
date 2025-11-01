@@ -6,10 +6,10 @@ use cursive::{
     Cursive, With,
 };
 use movies_archive::MoviesArchive;
-use rayon::slice::ParallelSliceMut;
 
 use std::{
     error::Error,
+    process::Command,
     sync::{Arc, RwLock},
     thread,
 };
@@ -159,7 +159,7 @@ impl App {
         if let Ok(archive) = movies.read() {
             let mut items: Vec<_> = archive.movies.iter().collect();
 
-            items.par_sort_by(|a, b| {
+            items.sort_by(|a, b| {
                 a.watched
                     .cmp(&b.watched)
                     .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
@@ -195,12 +195,12 @@ impl App {
                 return;
             };
 
-            movies.set_watched(name);
-            movies.save_movies().ok();
-
             let path = movies.get_path(name);
 
-            open::that_detached(path).ok();
+            Command::new("xdg-open").arg(path).spawn().ok();
+
+            movies.set_watched(name);
+            movies.save_movies().ok();
         };
 
         Self::update_movies_view(movies, s);
