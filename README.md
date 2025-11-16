@@ -66,13 +66,14 @@ For non-Nix users it is still possible to build the app from source using cargo.
 Dependencies: 
 
 - clang
+- llvm
 - pkg-config
 - FFmpeg libraries (including development headers)
 
 On fedora:
 
 ```console
-dnf install llvm pkg-config ffmpeg-devel
+dnf install clang llvm pkg-config ffmpeg-free-devel
 ```
 
 ```console
