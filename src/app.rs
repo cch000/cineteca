@@ -151,6 +151,7 @@ impl App {
 
         Self::update_movies_view(movies, view);
         Ok(())
+
     }
 
     fn update_movies_view(movies: &Arc<RwLock<MoviesArchive>>, view: &mut SelectView<String>) {
