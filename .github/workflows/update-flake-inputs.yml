@@ -14,6 +14,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{secrets.PAT_TOKEN}}
       - uses: cachix/install-nix-action@v25
 
       - name: Update flake inputs
