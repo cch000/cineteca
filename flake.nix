@@ -70,6 +70,38 @@
         }
     );
 
+    checks = forAllsystems (
+      system: let
+        pkgs = nixpkgs.legacyPackages.${system};
+      in {
+        formatting-nix = pkgs.runCommand "check-nix-formatting" {} ''
+          echo "Checking Nix file formatting..."
+          cd ${self}
+          ${pkgs.lib.getExe pkgs.alejandra} --check *.nix
+          touch $out
+        '';
+
+        formatting-rust = pkgs.runCommand "check-rust-formatting" {} ''
+          echo "Checking Rust file formatting..."
+          cd ${self}
+          ${pkgs.lib.getExe pkgs.rustfmt} --check src/*
+          touch $out
+        '';
+
+        linting-rust = self.packages.${system}.default.overrideAttrs (
+          old: {
+            name = "check-rust-linting";
+            doCheck = true;
+            checkPhase = ''
+              echo "Running Rust linting checks..."
+              cargo clippy -- -D warnings
+            '';
+            installPhase = "mkdir -p $out";
+          }
+        );
+      }
+    );
+
     devShells = forAllsystems (
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
