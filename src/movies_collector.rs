@@ -2,53 +2,78 @@ use std::{
     collections::HashSet,
     error::Error,
     ffi::OsStr,
+    fs::{self, Metadata},
     hash::{DefaultHasher, Hash, Hasher},
-    path::Path,
-    sync::mpsc,
+    path::{Path, PathBuf},
+    sync::{Arc, mpsc},
     thread::{self, JoinHandle},
 };
 
 use ffmpeg_next::log::Level::Quiet;
-use walkdir::{DirEntry, WalkDir};
 
-use crate::movies_archive::Movie;
+use crate::movies_archive::{Movie, Show};
 
 const EXTENSIONS: [&str; 4] = ["mkv", "mp4", "avi", "mov"];
 const MIN_DURATION: i64 = 3600;
+const MIN_FILE_SIZE: u64 = 300_000_000;
+
+pub struct ProcessedMedia {
+    movies: Vec<Movie>,
+    shows: Vec<Show>,
+}
+
+impl ProcessedMedia {
+    pub const fn new() -> Self {
+        Self {
+            movies: vec![],
+            shows: vec![],
+        }
+    }
+}
 
 pub struct MovieCollector;
 
 impl MovieCollector {
     pub fn collect_movies(movies_path: &str) -> (Vec<Movie>, u64) {
         Self::ffmpeg_init().expect("Failed to initialize ffmpeg");
-        let extensions: HashSet<&OsStr> = EXTENSIONS.iter().map(OsStr::new).collect();
+
+        let extensions = Arc::new(
+            EXTENSIONS
+                .iter()
+                .map(|ext| OsStr::new(ext))
+                .collect::<HashSet<_>>(),
+        );
 
         let mut hash = DefaultHasher::new();
 
-        let entries: Vec<_> = WalkDir::new(movies_path)
-            .into_iter()
-            .filter_map(Result::ok)
+        let top_entries: Vec<PathBuf> = fs::read_dir(movies_path)
+            .expect("Invalid movie directory")
+            .filter_map(std::result::Result::ok)
+            .map(|entry| entry.path())
             .collect();
 
         // One chunk per cpu thread
         let max_chunks = thread::available_parallelism().unwrap().get();
-        let chunk_size = entries.len().div_ceil(max_chunks);
+        let chunk_size = top_entries.len().div_ceil(max_chunks);
 
         let (tx, rx) = mpsc::channel();
 
-        let handles: Vec<JoinHandle<()>> = entries
+        let handles: Vec<JoinHandle<()>> = top_entries
             .chunks(chunk_size)
-            .map(<[walkdir::DirEntry]>::to_vec)
             .map(|chunk| {
                 let tx = tx.clone();
-                let extensions = extensions.clone();
+                let extensions = Arc::clone(&extensions);
+                let chunk = chunk.to_vec();
 
                 thread::spawn(move || {
-                    let movies: Vec<Movie> = chunk
-                        .into_iter()
-                        .filter_map(|entry| Self::process_movie_entry(&entry, &extensions))
-                        .collect();
-                    tx.send(movies).expect("Failed to send my share of movies");
+                    let mut processed_media = ProcessedMedia::new();
+
+                    for path in chunk {
+                        Self::process_dir(&mut processed_media, &path, &extensions).ok();
+                    }
+
+                    tx.send(processed_media)
+                        .expect("Failed to send media from thread");
                 })
             })
             .collect();
@@ -56,48 +81,103 @@ impl MovieCollector {
         let spawned_threads = handles.len();
 
         for h in handles {
-            h.join().unwrap();
+            if let Err(_) = h.join() {
+                eprintln!("Thread panicked");
+            }
         }
 
-        let mut movies: Vec<Movie> = rx.iter().take(spawned_threads).flatten().collect();
+        let mut movies: Vec<Movie> = rx
+            .iter()
+            .take(spawned_threads)
+            .flat_map(|p| p.movies)
+            .collect();
 
         movies.sort_by(|a, b| a.name.cmp(&b.name));
-
         movies.hash(&mut hash);
 
         (movies, hash.finish())
     }
 
-    fn is_movie(path: &Path, extensions: &HashSet<&OsStr>) -> Result<bool, Box<dyn Error>> {
-        if path
+    fn is_movie(
+        path: &Path,
+        extensions: &Arc<HashSet<&OsStr>>,
+        metadata: &Metadata,
+    ) -> Result<bool, Box<dyn Error>> {
+        if !path
             .extension()
             .is_some_and(|ext| extensions.contains(&ext))
         {
-            let duration = ffmpeg_next::format::input(path)?.duration()
-                / i64::from(ffmpeg_next::ffi::AV_TIME_BASE);
-
-            Ok(duration.ge(&MIN_DURATION))
-        } else {
-            Ok(false)
+            return Ok(false);
         }
+
+        if metadata.len() < MIN_FILE_SIZE {
+            return Ok(false);
+        }
+
+        let duration = ffmpeg_next::format::input(path)?.duration()
+            / i64::from(ffmpeg_next::ffi::AV_TIME_BASE);
+
+        Ok(duration.ge(&MIN_DURATION))
     }
 
-    fn process_movie_entry(entry: &DirEntry, extensions: &HashSet<&OsStr>) -> Option<Movie> {
-        let path = entry.path();
+    fn process_file(
+        path: &Path,
+        extensions: &Arc<HashSet<&OsStr>>,
+    ) -> Result<Option<Movie>, Box<dyn Error>> {
+        let metadata = path.metadata()?;
 
-        if !Self::is_movie(path, extensions).unwrap_or(false) {
-            return None;
+        if !metadata.is_file() {
+            return Ok(None);
+        }
+
+        if !Self::is_movie(path, extensions, &metadata)? {
+            return Ok(None);
         }
 
         let name = path
             .file_name()
-            .and_then(|fname| fname.to_owned().into_string().ok())?;
+            .ok_or("Invalid filename")?
+            .to_string_lossy()
+            .to_string();
 
-        Some(Movie {
+        Ok(Some(Movie {
             name,
             path: path.to_path_buf(),
             watched: false,
-        })
+        }))
+    }
+
+    fn process_dir(
+        processed_media: &mut ProcessedMedia,
+        path: &Path,
+        extensions: &Arc<HashSet<&OsStr>>,
+    ) -> Result<(), Box<dyn Error>> {
+        if !path.is_dir() {
+            if let Ok(Some(movie)) = Self::process_file(path, extensions) {
+                processed_media.movies.push(movie);
+            }
+            return Ok(());
+        }
+
+        let entries = fs::read_dir(path)?;
+
+        for entry in entries.filter_map(Result::ok) {
+            let entry_path = entry.path();
+
+            match entry.file_type() {
+                Ok(ft) if ft.is_file() => {
+                    if let Ok(Some(movie)) = Self::process_file(&entry_path, extensions) {
+                        processed_media.movies.push(movie);
+                    }
+                }
+                Ok(ft) if ft.is_dir() => {
+                    Self::process_dir(processed_media, &entry_path, extensions)?;
+                }
+                _ => {}
+            }
+        }
+
+        Ok(())
     }
 
     fn ffmpeg_init() -> Result<(), Box<dyn Error>> {

@@ -1,9 +1,9 @@
 use cursive::{
+    Cursive, With,
     event::{Event, EventResult},
     theme::{BorderStyle, Palette},
     view::{Nameable, Resizable, Scrollable},
     views::{Dialog, NamedView, OnEventView, ScrollView, SelectView, TextView},
-    Cursive, With,
 };
 use movies_archive::MoviesArchive;
 
@@ -142,11 +142,11 @@ impl App {
         let selected = view.selected_id();
         let name = selected.and_then(|id| view.get_item(id).map(|(_, name)| name)); // Get the actual movie name
 
-        if let Some(name) = name {
-            if let Ok(mut movies) = movies.write() {
-                movies.toggle_watched(name);
-                movies.save_movies()?;
-            }
+        if let Some(name) = name
+            && let Ok(mut movies) = movies.write()
+        {
+            movies.toggle_watched(name);
+            movies.save_movies()?;
         }
 
         Self::update_movies_view(movies, view);

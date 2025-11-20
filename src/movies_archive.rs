@@ -11,10 +11,29 @@ use serde::{Deserialize, Serialize};
 
 use crate::movies_collector::MovieCollector;
 
-const SAVE_FILE: &str = ".movies.json";
+const SAVE_FILE: &str = ".media.json";
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Hash)]
 pub struct Movie {
+    pub name: String,
+    pub path: PathBuf,
+    pub watched: bool,
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Hash)]
+pub struct Show {
+    pub name: String,
+    pub seasons: Vec<Season>,
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Hash)]
+pub struct Season {
+    pub name: String,
+    pub episodes: Vec<Episode>,
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Hash)]
+pub struct Episode {
     pub name: String,
     pub path: PathBuf,
     pub watched: bool,
