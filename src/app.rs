@@ -1,11 +1,11 @@
+use archive::Archive;
 use cursive::{
+    Cursive, With,
     event::{Event, EventResult},
     theme::{BorderStyle, Palette},
     view::{Nameable, Resizable, Scrollable},
     views::{Dialog, NamedView, OnEventView, ScrollView, SelectView, TextView},
-    Cursive, With,
 };
-use movies_archive::MoviesArchive;
 
 use std::{
     error::Error,
@@ -14,7 +14,7 @@ use std::{
     thread,
 };
 
-use crate::movies_archive;
+use crate::archive;
 
 const HELP_KEYBINDS: &[&str] = &[
     "w -> mark as watched",
@@ -25,13 +25,13 @@ const HELP_KEYBINDS: &[&str] = &[
 ];
 
 pub struct App {
-    movies: Arc<RwLock<MoviesArchive>>,
+    movies: Arc<RwLock<Archive>>,
 }
 
 impl App {
     pub fn new(path: &str) -> Self {
         Self {
-            movies: Arc::new(RwLock::new(MoviesArchive::init(path))),
+            movies: Arc::new(RwLock::new(Archive::init(path))),
         }
     }
 
@@ -97,7 +97,7 @@ impl App {
         siv.run();
 
         if let Ok(movies) = self.movies.read() {
-            movies.save_movies()?;
+            movies.save()?;
         }
 
         Ok(())
@@ -136,24 +136,24 @@ impl App {
     }
 
     fn update_watched(
-        movies: &Arc<RwLock<MoviesArchive>>,
+        movies: &Arc<RwLock<Archive>>,
         view: &mut SelectView<String>,
     ) -> Result<(), Box<dyn Error>> {
         let selected = view.selected_id();
         let name = selected.and_then(|id| view.get_item(id).map(|(_, name)| name)); // Get the actual movie name
 
-        if let Some(name) = name {
-            if let Ok(mut movies) = movies.write() {
-                movies.toggle_watched(name);
-                movies.save_movies()?;
-            }
+        if let Some(name) = name
+            && let Ok(mut movies) = movies.write()
+        {
+            movies.toggle_watched(name);
+            movies.save()?;
         }
 
         Self::update_movies_view(movies, view);
         Ok(())
     }
 
-    fn update_movies_view(movies: &Arc<RwLock<MoviesArchive>>, view: &mut SelectView<String>) {
+    fn update_movies_view(movies: &Arc<RwLock<Archive>>, view: &mut SelectView<String>) {
         let selected = view.selected_id();
 
         if let Ok(archive) = movies.read() {
@@ -182,7 +182,7 @@ impl App {
         }
     }
 
-    fn play_movie(movies: &Arc<RwLock<MoviesArchive>>, s: &mut SelectView) {
+    fn play_movie(movies: &Arc<RwLock<Archive>>, s: &mut SelectView) {
         let Some(name) = s
             .selected_id()
             .and_then(|id| s.get_item(id).map(|(_, name)| name))
@@ -200,7 +200,7 @@ impl App {
             Command::new("xdg-open").arg(path).spawn().ok();
 
             movies.set_watched(name);
-            movies.save_movies().ok();
+            movies.save().ok();
         };
 
         Self::update_movies_view(movies, s);

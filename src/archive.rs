@@ -9,7 +9,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::movies_collector::MovieCollector;
+use crate::collector::Collector;
 
 const SAVE_FILE: &str = ".movies.json";
 
@@ -21,34 +21,34 @@ pub struct Movie {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct MoviesArchive {
+pub struct Archive {
     pub movies: Vec<Movie>,
     hash: u64,
 
     #[serde(skip)]
     save_path: String,
     #[serde(skip)]
-    movies_path: String,
+    path: String,
 }
 
-impl MoviesArchive {
-    pub fn init(movies_path: &str) -> Self {
-        let save_path = format!("{movies_path}/{SAVE_FILE}");
+impl Archive {
+    pub fn init(path: &str) -> Self {
+        let save_path = format!("{path}/{SAVE_FILE}");
 
-        if let Some(mut saved_movies) = Self::load_saved_movies(&save_path) {
-            saved_movies.movies_path = movies_path.to_string();
-            saved_movies.save_path = save_path;
-            saved_movies
+        if let Some(mut saved) = Self::load_saved(&save_path) {
+            saved.path = path.to_string();
+            saved.save_path = save_path;
+            saved
         } else {
-            Self::build_archive(movies_path, None, None, None, &save_path)
+            Self::build_archive(path, None, None, None, &save_path)
         }
     }
 
     pub fn refresh(&mut self) {
-        let (movies, hash) = MovieCollector::collect_movies(&self.movies_path);
+        let (movies, hash) = Collector::collect(&self.path);
         if hash != self.hash {
             *self = Self::build_archive(
-                &self.movies_path,
+                &self.path,
                 Some(&mut self.movies),
                 Some(&movies),
                 Some(hash),
@@ -80,7 +80,7 @@ impl MoviesArchive {
         self.movies.get_mut(index).unwrap().watched = true;
     }
 
-    fn load_saved_movies(save_path: &String) -> Option<Self> {
+    fn load_saved(save_path: &String) -> Option<Self> {
         if Path::new(save_path).exists() {
             let json = fs::read_to_string(save_path).unwrap();
 
@@ -91,29 +91,29 @@ impl MoviesArchive {
         }
     }
 
-    pub fn save_movies(&self) -> Result<(), Box<dyn Error>> {
+    pub fn save(&self) -> Result<(), Box<dyn Error>> {
         let json = serde_json::to_string_pretty(&self)?;
         fs::write(&self.save_path, json)?;
         Ok(())
     }
 
     fn build_archive(
-        movies_path: &str,
-        prev_movies: Option<&mut Vec<Movie>>,
+        path: &str,
+        prev: Option<&mut Vec<Movie>>,
         movies: Option<&Vec<Movie>>,
         hash: Option<u64>,
         save_path: &str,
     ) -> Self {
-        let movies_path = movies_path.to_string();
+        let movies_path = path.to_string();
         let save_path = save_path.to_string();
 
-        let Some(prev) = prev_movies else {
-            let (movies, hash) = MovieCollector::collect_movies(&movies_path);
+        let Some(prev) = prev else {
+            let (movies, hash) = Collector::collect(&movies_path);
             return Self {
                 movies,
                 hash,
                 save_path,
-                movies_path,
+                path: movies_path,
             };
         };
 
@@ -129,7 +129,7 @@ impl MoviesArchive {
             movies: mem::take(prev),
             hash: hash.unwrap(),
             save_path,
-            movies_path,
+            path: movies_path,
         }
     }
 }
