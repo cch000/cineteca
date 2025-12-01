@@ -1,11 +1,11 @@
+use archive::Archive;
 use cursive::{
+    Cursive, With,
     event::{Event, EventResult},
     theme::{BorderStyle, Palette},
     view::{Nameable, Resizable, Scrollable},
     views::{Dialog, NamedView, OnEventView, ScrollView, SelectView, TextView},
-    Cursive, With,
 };
-use archive::Archive;
 
 use std::{
     error::Error,
@@ -143,10 +143,11 @@ impl App {
         let name = selected.and_then(|id| view.get_item(id).map(|(_, name)| name)); // Get the actual movie name
 
         if let Some(name) = name
-            && let Ok(mut movies) = movies.write() {
-                movies.toggle_watched(name);
-                movies.save()?;
-            }
+            && let Ok(mut movies) = movies.write()
+        {
+            movies.toggle_watched(name);
+            movies.save()?;
+        }
 
         Self::update_movies_view(movies, view);
         Ok(())
