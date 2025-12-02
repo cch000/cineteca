@@ -26,17 +26,17 @@ pub struct Archive {
     hash: u64,
 
     #[serde(skip)]
-    save_path: String,
+    save_path: PathBuf,
     #[serde(skip)]
-    path: String,
+    path: PathBuf,
 }
 
 impl Archive {
-    pub fn init(path: &str) -> Self {
-        let save_path = format!("{path}/{SAVE_FILE}");
+    pub fn init(path: &Path) -> Self {
+        let save_path = PathBuf::from(format!("{}/{SAVE_FILE}", path.to_str().unwrap()));
 
         if let Some(mut saved) = Self::load_saved(&save_path) {
-            saved.path = path.to_string();
+            saved.path = path.to_path_buf();
             saved.save_path = save_path;
             saved
         } else {
@@ -80,7 +80,7 @@ impl Archive {
         self.movies.get_mut(index).unwrap().watched = true;
     }
 
-    fn load_saved(save_path: &String) -> Option<Self> {
+    fn load_saved(save_path: &Path) -> Option<Self> {
         if Path::new(save_path).exists() {
             let json = fs::read_to_string(save_path).unwrap();
 
@@ -98,22 +98,19 @@ impl Archive {
     }
 
     fn build_archive(
-        path: &str,
+        path: &Path,
         prev: Option<&mut Vec<Movie>>,
         movies: Option<&Vec<Movie>>,
         hash: Option<u64>,
-        save_path: &str,
+        save_path: &Path,
     ) -> Self {
-        let movies_path = path.to_string();
-        let save_path = save_path.to_string();
-
         let Some(prev) = prev else {
-            let (movies, hash) = Collector::collect(&movies_path);
+            let (movies, hash) = Collector::collect(path);
             return Self {
                 movies,
                 hash,
-                save_path,
-                path: movies_path,
+                save_path: save_path.to_path_buf(),
+                path: path.to_path_buf(),
             };
         };
 
@@ -128,8 +125,8 @@ impl Archive {
         Self {
             movies: mem::take(prev),
             hash: hash.unwrap(),
-            save_path,
-            path: movies_path,
+            save_path: save_path.to_path_buf(),
+            path: path.to_path_buf(),
         }
     }
 }
