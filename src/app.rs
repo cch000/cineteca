@@ -1,14 +1,14 @@
 use archive::Archive;
 use cursive::{
     Cursive, With,
-    event::{Event, EventResult},
+    event::Event,
     theme::{BorderStyle, Palette},
     view::{Nameable, Resizable, Scrollable},
-    views::{Dialog, NamedView, OnEventView, ScrollView, SelectView, TextView},
+    views::{Dialog, NamedView, OnEventView, Panel, ScrollView, SelectView, TextView},
 };
 
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Command, Stdio},
     thread,
 };
@@ -22,8 +22,8 @@ const HELP_KEYBINDS: &[&str] = &[
     "q -> quit",
     "ESC -> go back",
 ];
-
 const SELECT_ID: &str = "select";
+const SCROLL_ID: &str = "scroll";
 
 pub struct App {
     path: PathBuf,
@@ -62,61 +62,31 @@ impl App {
             }),
         });
 
-        siv.set_user_data(Archive::init(&self.path));
-
-        siv.add_global_callback('q', cursive::Cursive::quit);
-        siv.add_global_callback('?', Self::show_keybinds);
+        Self::setup_keybinds(&mut siv);
 
         siv.add_fullscreen_layer(
-            Dialog::new()
+            Panel::new(Self::set_up_movies_view())
                 .title("CINETECA")
-                .content(Self::movies_view())
                 .full_screen(),
         );
 
-        let cb = siv.cb_sink().clone();
-        let path = self.path.clone();
+        siv.set_user_data(Archive::init(&self.path));
 
-        thread::spawn(move || {
-            let (movies, hash) = Collector::collect(&path);
+        // populate view
+        Self::refresh_view(&mut siv);
 
-            cb.send(Box::new(move |siv| {
-                siv.with_user_data(|archive: &mut Archive| {
-                    archive.update(&movies, hash);
-                    archive.save().ok();
-                });
-
-                Self::update_movies_view(siv);
-            }))
-            .ok();
-        });
-
-        Self::update_movies_view(&mut siv);
+        // refresh view later
+        Self::background_refresh(&siv, &self.path);
 
         siv.run();
     }
 
-    fn movies_view() -> OnEventView<ScrollView<NamedView<SelectView>>> {
-        let select = SelectView::<String>::new()
+    fn set_up_movies_view() -> NamedView<ScrollView<NamedView<SelectView>>> {
+        SelectView::<String>::new()
             .with_name(SELECT_ID)
             .scrollable()
-            .scroll_x(true);
-
-        OnEventView::new(select)
-            .on_pre_event_inner('h', |s, _| Some(s.scroll_to_left()))
-            .on_pre_event_inner('l', |s, _| Some(s.scroll_to_right()))
-            .on_pre_event_inner('j', |s, _| {
-                let cb = s.get_inner_mut().get_mut().select_down(1);
-                s.scroll_to_important_area();
-                Some(EventResult::Consumed(Some(cb)))
-            })
-            .on_pre_event_inner('k', |s, _| {
-                let cb = s.get_inner_mut().get_mut().select_up(1);
-                s.scroll_to_important_area();
-                Some(EventResult::Consumed(Some(cb)))
-            })
-            .on_pre_event('w', Self::toggle_watched)
-            .on_pre_event('p', Self::play_movie)
+            .scroll_x(true)
+            .with_name(SCROLL_ID)
     }
 
     fn toggle_watched(siv: &mut Cursive) {
@@ -127,10 +97,10 @@ impl App {
             });
         }
 
-        Self::update_movies_view(siv);
+        Self::refresh_view(siv);
     }
 
-    fn update_movies_view(siv: &mut Cursive) {
+    fn refresh_view(siv: &mut Cursive) {
         let items: Vec<(String, String)> = siv
             .with_user_data(|archive: &mut Archive| {
                 let mut items: Vec<_> = archive.movies.iter().collect();
@@ -187,8 +157,63 @@ impl App {
                 archive.save().ok();
             });
 
-            Self::update_movies_view(siv);
+            Self::refresh_view(siv);
         }
+    }
+
+    fn get_selected_name(siv: &mut Cursive) -> Option<String> {
+        siv.call_on_name(SELECT_ID, |s: &mut SelectView<String>| {
+            s.selected_id()
+                .and_then(|id| s.get_item(id).map(|(_, name)| name.clone()))
+        })
+        .flatten()
+    }
+
+    fn background_refresh(siv: &Cursive, path: &Path) {
+        let path = path.to_path_buf();
+        let cb = siv.cb_sink().clone();
+        thread::spawn(move || {
+            let (movies, hash) = Collector::collect(&path);
+
+            cb.send(Box::new(move |siv| {
+                siv.with_user_data(|archive: &mut Archive| {
+                    archive.update(&movies, hash);
+                    archive.save().ok();
+                });
+
+                Self::refresh_view(siv);
+            }))
+            .ok();
+        });
+    }
+
+    fn setup_keybinds(siv: &mut cursive::CursiveRunnable) {
+        siv.add_global_callback('q', cursive::Cursive::quit);
+        siv.add_global_callback('?', Self::show_keybinds);
+        siv.add_global_callback('h', |siv| {
+            siv.call_on_name(SCROLL_ID, |v: &mut ScrollView<NamedView<SelectView>>| {
+                v.scroll_to_left();
+            });
+        });
+        siv.add_global_callback('l', |siv| {
+            siv.call_on_name(SCROLL_ID, |v: &mut ScrollView<NamedView<SelectView>>| {
+                v.scroll_to_right();
+            });
+        });
+        siv.add_global_callback('j', |siv| {
+            siv.call_on_name(SELECT_ID, |v: &mut SelectView| v.select_down(1));
+            siv.call_on_name(SCROLL_ID, |v: &mut ScrollView<NamedView<SelectView>>| {
+                v.scroll_to_important_area()
+            });
+        });
+        siv.add_global_callback('k', |siv| {
+            siv.call_on_name(SELECT_ID, |v: &mut SelectView| v.select_up(1));
+            siv.call_on_name(SCROLL_ID, |v: &mut ScrollView<NamedView<SelectView>>| {
+                v.scroll_to_important_area()
+            });
+        });
+        siv.add_global_callback('w', Self::toggle_watched);
+        siv.add_global_callback('p', Self::play_movie);
     }
 
     fn show_keybinds(siv: &mut Cursive) {
@@ -205,13 +230,5 @@ impl App {
                 app.pop_layer();
             },
         ));
-    }
-
-    fn get_selected_name(siv: &mut Cursive) -> Option<String> {
-        siv.call_on_name(SELECT_ID, |s: &mut SelectView<String>| {
-            s.selected_id()
-                .and_then(|id| s.get_item(id).map(|(_, name)| name.clone()))
-        })
-        .flatten()
     }
 }
