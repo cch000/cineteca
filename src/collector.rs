@@ -19,7 +19,7 @@ const MIN_DURATION: i64 = 3600;
 pub struct Collector;
 
 impl Collector {
-    pub fn collect(path: &str) -> (Vec<Movie>, u64) {
+    pub fn collect(path: &Path) -> (Vec<Movie>, u64) {
         Self::ffmpeg_init().expect("Failed to initialize ffmpeg");
 
         let extensions: HashSet<&OsStr> = EXTENSIONS.iter().map(OsStr::new).collect();
@@ -40,7 +40,7 @@ impl Collector {
 
             thread::spawn(move || {
                 for entry in chunk {
-                    if let Some(movie) = Collector::process_entry(&entry, &extensions) {
+                    if let Some(movie) = Self::process_entry(&entry, &extensions) {
                         tx.send(movie).ok();
                     }
                 }

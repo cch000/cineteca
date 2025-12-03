@@ -2,23 +2,20 @@ mod app;
 mod archive;
 mod collector;
 
-use std::{env, error::Error};
+use std::{env, path::PathBuf};
 
 use app::App;
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let path = env::args().nth(1).map_or_else(
+fn main() {
+    let input = env::args().nth(1).map_or_else(
         || ".".to_string(),
-        |mut path| {
-            if path.ends_with('/') {
-                path.remove(path.len() - 1);
+        |mut input| {
+            if input.ends_with('/') {
+                input.remove(input.len() - 1);
             }
-
-            path
+            input
         },
     );
 
-    App::new(&path).run()?;
-
-    Ok(())
+    App::new(PathBuf::from(input)).run();
 }
