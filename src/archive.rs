@@ -44,13 +44,12 @@ impl Archive {
         }
     }
 
-    pub fn refresh(&mut self) {
-        let (movies, hash) = Collector::collect(&self.path);
+    pub fn update(&mut self, data: &[Movie], hash: u64) {
         if hash != self.hash {
             *self = Self::build_archive(
                 &self.path,
                 Some(&mut self.movies),
-                Some(&movies),
+                Some(data),
                 Some(hash),
                 &self.save_path,
             );
@@ -100,7 +99,7 @@ impl Archive {
     fn build_archive(
         path: &Path,
         prev: Option<&mut Vec<Movie>>,
-        movies: Option<&Vec<Movie>>,
+        movies: Option<&[Movie]>,
         hash: Option<u64>,
         save_path: &Path,
     ) -> Self {
@@ -116,9 +115,9 @@ impl Archive {
 
         let movies = movies.unwrap();
 
-        prev.retain(|item| movies.clone().iter().any(|m| m.name == item.name));
+        prev.retain(|item| movies.iter().any(|m| m.name == item.name));
 
-        prev.extend(movies.clone());
+        prev.extend(movies.to_vec());
         prev.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| b.watched.cmp(&a.watched)));
         prev.dedup_by(|a, b| b.name == a.name);
 

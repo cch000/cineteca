@@ -13,7 +13,7 @@ use std::{
     thread,
 };
 
-use crate::archive;
+use crate::{archive, collector::Collector};
 
 const HELP_KEYBINDS: &[&str] = &[
     "w -> mark as watched",
@@ -22,6 +22,8 @@ const HELP_KEYBINDS: &[&str] = &[
     "q -> quit",
     "ESC -> go back",
 ];
+
+const SELECT_ID: &str = "select";
 
 pub struct App {
     path: PathBuf,
@@ -73,11 +75,15 @@ impl App {
         );
 
         let cb = siv.cb_sink().clone();
+        let path = self.path.clone();
 
         thread::spawn(move || {
+            let (movies, hash) = Collector::collect(&path);
+
             cb.send(Box::new(move |siv| {
                 siv.with_user_data(|archive: &mut Archive| {
-                    archive.refresh();
+                    archive.update(&movies, hash);
+                    archive.save().ok();
                 });
 
                 Self::update_movies_view(siv);
@@ -92,7 +98,7 @@ impl App {
 
     fn movies_view() -> OnEventView<ScrollView<NamedView<SelectView>>> {
         let select = SelectView::<String>::new()
-            .with_name("select")
+            .with_name(SELECT_ID)
             .scrollable()
             .scroll_x(true);
 
@@ -109,24 +115,15 @@ impl App {
                 s.scroll_to_important_area();
                 Some(EventResult::Consumed(Some(cb)))
             })
-            .on_pre_event('w', Self::update_watched)
+            .on_pre_event('w', Self::toggle_watched)
             .on_pre_event('p', Self::play_movie)
     }
 
-    fn update_watched(siv: &mut Cursive) {
-        let selected_name = siv
-            .find_name::<SelectView<String>>("select")
-            .and_then(|v| v.selected_id())
-            .and_then(|id| {
-                siv.find_name::<SelectView<String>>("select")?
-                    .get_item(id)
-                    .map(|(_, v)| v.clone())
-            });
-
-        if let Some(name) = selected_name {
+    fn toggle_watched(siv: &mut Cursive) {
+        if let Some(name) = Self::get_selected_name(siv) {
             siv.with_user_data(|archive: &mut Archive| {
                 archive.toggle_watched(&name);
-                let _ = archive.save();
+                archive.save().ok();
             });
         }
 
@@ -158,7 +155,7 @@ impl App {
             })
             .unwrap_or_default();
 
-        if let Some(mut view) = siv.find_name::<SelectView<String>>("select") {
+        if let Some(mut view) = siv.find_name::<SelectView<String>>(SELECT_ID) {
             let selected_id = view.selected_id();
 
             view.clear();
@@ -174,16 +171,7 @@ impl App {
     }
 
     fn play_movie(siv: &mut Cursive) {
-        let selected_name = siv
-            .find_name::<SelectView<String>>("select")
-            .and_then(|v| v.selected_id())
-            .and_then(|id| {
-                siv.find_name::<SelectView<String>>("select")?
-                    .get_item(id)
-                    .map(|(_, v)| v.clone())
-            });
-
-        if let Some(name) = selected_name {
+        if let Some(name) = Self::get_selected_name(siv) {
             siv.with_user_data(|archive: &mut Archive| {
                 let path = archive.get_path(&name);
                 let path_string = path.to_string_lossy().into_owned();
@@ -217,5 +205,13 @@ impl App {
                 app.pop_layer();
             },
         ));
+    }
+
+    fn get_selected_name(siv: &mut Cursive) -> Option<String> {
+        siv.call_on_name(SELECT_ID, |s: &mut SelectView<String>| {
+            s.selected_id()
+                .and_then(|id| s.get_item(id).map(|(_, name)| name.clone()))
+        })
+        .flatten()
     }
 }
