@@ -28,8 +28,15 @@ during runtime:
 
 ## Nix
 
-Nix users can take advantage of the flake provided in this repo. Add the flake to your
-configuration inputs and declare it as a package to install, e.g., by adding it to systemPackages.
+Try it without installing:
+
+```console
+ nix run github:cch000/cineteca
+```
+
+Nix users can also take advantage of the flake provided in this repo to 
+easily install cineteca. Add the flake to your configuration inputs and 
+declare it as a package to install, e.g., by adding it to systemPackages.
 
 ```Nix
   inputs = {
