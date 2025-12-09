@@ -2,11 +2,11 @@ mod app;
 mod archive;
 mod collector;
 
-use std::{env, path::PathBuf};
+use std::{env, error::Error, path::PathBuf};
 
 use app::App;
 
-fn main() {
+fn main() -> Result<(), Box<dyn Error>> {
     let input = env::args().nth(1).map_or_else(
         || ".".to_string(),
         |mut input| {
@@ -17,5 +17,19 @@ fn main() {
         },
     );
 
-    App::new(PathBuf::from(input)).run();
+    if input == "-h" || input == "--help" {
+        println!("Usage:");
+        println!("cineteca [path/to/scan] (defaults to current dir)");
+        return Ok(());
+    }
+
+    let path = PathBuf::from(input);
+
+    if !path.exists() {
+        return Err("Provided path does not exist".into());
+    }
+
+    App::new(path).run();
+
+    Ok(())
 }
