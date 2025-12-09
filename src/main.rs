@@ -2,11 +2,7 @@ mod app;
 mod archive;
 mod collector;
 
-use std::{
-    env,
-    error::Error,
-    path::PathBuf,
-};
+use std::{env, error::Error, path::PathBuf};
 
 use app::App;
 
