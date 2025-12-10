@@ -105,16 +105,17 @@ impl App {
             .with_user_data(|archive: &mut Archive| {
                 let mut items: Vec<_> = archive.movies.iter().collect();
 
-                items.sort_by(|a, b| {
-                    a.watched
-                        .cmp(&b.watched)
-                        .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+                items.sort_by(|a, b| match (a.date_watched, b.date_watched) {
+                    (None, None) => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+                    (None, Some(_)) => std::cmp::Ordering::Less,
+                    (Some(_), None) => std::cmp::Ordering::Greater,
+                    (Some(date_a), Some(date_b)) => date_b.cmp(&date_a),
                 });
 
                 items
                     .into_iter()
                     .map(|item| {
-                        let label = if item.watched {
+                        let label = if item.date_watched.is_some() {
                             format!("[WATCHED] {}", item.name)
                         } else {
                             item.name.clone()

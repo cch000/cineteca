@@ -3,8 +3,8 @@ use std::{
     fs,
     hash::Hash,
     mem,
-    ops::Not,
     path::{Path, PathBuf},
+    time::SystemTime,
 };
 
 use serde::{Deserialize, Serialize};
@@ -17,7 +17,7 @@ const SAVE_FILE: &str = ".movies.json";
 pub struct Movie {
     pub name: String,
     pub path: PathBuf,
-    pub watched: bool,
+    pub date_watched: Option<SystemTime>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -60,7 +60,10 @@ impl Archive {
         let index = self.get_index(name);
         let movie = self.movies.get_mut(index).unwrap();
 
-        movie.watched = movie.watched.not();
+        match movie.date_watched {
+            Some(_) => movie.date_watched = None,
+            None => movie.date_watched = Some(SystemTime::now()),
+        }
     }
 
     fn get_index(&self, name: &str) -> usize {
@@ -76,7 +79,7 @@ impl Archive {
 
     pub fn set_watched(&mut self, name: &str) {
         let index = self.get_index(name);
-        self.movies.get_mut(index).unwrap().watched = true;
+        self.movies.get_mut(index).unwrap().date_watched = Some(SystemTime::now());
     }
 
     fn load_saved(save_path: &Path) -> Option<Self> {
@@ -118,7 +121,7 @@ impl Archive {
         prev.retain(|item| movies.iter().any(|m| m.name == item.name));
 
         prev.extend(movies.to_vec());
-        prev.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| b.watched.cmp(&a.watched)));
+        prev.sort_by(|a, b| a.name.cmp(&b.name));
         prev.dedup_by(|a, b| b.name == a.name);
 
         Self {

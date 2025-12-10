@@ -82,7 +82,7 @@ impl Collector {
         Some(Movie {
             name,
             path: path.to_path_buf(),
-            watched: false,
+            date_watched: None,
         })
     }
 
