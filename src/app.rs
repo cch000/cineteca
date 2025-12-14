@@ -15,15 +15,35 @@ use std::{
 
 use crate::{archive, collector::Collector};
 
+enum Filter {
+    Watched,
+    NotWatched,
+}
+
 const HELP_KEYBINDS: &[&str] = &[
     "w -> mark as watched",
     "p -> play a movie",
     "? -> show this dialog",
     "q -> quit",
+    "s -> toggle watched filter",
     "ESC -> go back",
 ];
 const SELECT_ID: &str = "select";
 const SCROLL_ID: &str = "scroll";
+
+struct UserData {
+    archive: Archive,
+    filter: Option<Filter>,
+}
+
+impl UserData {
+    pub const fn new(archive: Archive) -> Self {
+        Self {
+            archive,
+            filter: None,
+        }
+    }
+}
 
 pub struct App {
     path: PathBuf,
@@ -70,7 +90,7 @@ impl App {
                 .full_screen(),
         );
 
-        siv.set_user_data(Archive::init(&self.path));
+        siv.set_user_data(UserData::new(Archive::init(&self.path)));
 
         // populate view
         Self::refresh_view(&mut siv);
@@ -91,7 +111,8 @@ impl App {
 
     fn toggle_watched(siv: &mut Cursive) {
         if let Some(name) = Self::get_selected_name(siv) {
-            siv.with_user_data(|archive: &mut Archive| {
+            siv.with_user_data(|user_data: &mut UserData| {
+                let archive = &mut user_data.archive;
                 archive.toggle_watched(&name);
                 archive.save().ok();
             });
@@ -102,7 +123,10 @@ impl App {
 
     fn refresh_view(siv: &mut Cursive) {
         let items: Vec<(String, String)> = siv
-            .with_user_data(|archive: &mut Archive| {
+            .with_user_data(|user_data: &mut UserData| {
+                let archive = &mut user_data.archive;
+                let filter = &mut user_data.filter;
+
                 let mut items: Vec<_> = archive.movies.iter().collect();
 
                 items.sort_by(|a, b| match (a.date_watched, b.date_watched) {
@@ -114,6 +138,11 @@ impl App {
 
                 items
                     .into_iter()
+                    .filter(|movie| match filter {
+                        Some(Filter::NotWatched) => movie.date_watched.is_none(),
+                        Some(Filter::Watched) => movie.date_watched.is_some(),
+                        None => true,
+                    })
                     .map(|item| {
                         let label = if item.date_watched.is_some() {
                             format!("[WATCHED] {}", item.name)
@@ -141,9 +170,23 @@ impl App {
         }
     }
 
+    fn toggle_filter_view(siv: &mut Cursive) {
+        siv.with_user_data(|user_data: &mut UserData| {
+            let current_filter = &mut user_data.filter;
+            *current_filter = match current_filter {
+                Some(Filter::NotWatched) => Some(Filter::Watched),
+                Some(Filter::Watched) => None,
+                None => Some(Filter::NotWatched),
+            }
+        });
+
+        Self::refresh_view(siv);
+    }
+
     fn play_movie(siv: &mut Cursive) {
         if let Some(name) = Self::get_selected_name(siv) {
-            siv.with_user_data(|archive: &mut Archive| {
+            siv.with_user_data(|user_data: &mut UserData| {
+                let archive = &mut user_data.archive;
                 let path = archive.get_path(&name);
                 let path_string = path.to_string_lossy().into_owned();
 
@@ -177,7 +220,8 @@ impl App {
             let (movies, hash) = Collector::collect(&path);
 
             cb.send(Box::new(move |siv| {
-                siv.with_user_data(|archive: &mut Archive| {
+                siv.with_user_data(|user_data: &mut UserData| {
+                    let archive = &mut user_data.archive;
                     archive.update(&movies, hash);
                     archive.save().ok();
                 });
@@ -215,6 +259,7 @@ impl App {
         });
         siv.add_global_callback('w', Self::toggle_watched);
         siv.add_global_callback('p', Self::play_movie);
+        siv.add_global_callback('s', Self::toggle_filter_view);
     }
 
     fn show_keybinds(siv: &mut Cursive) {
