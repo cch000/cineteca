@@ -60,6 +60,7 @@ cineteca [path/to/library] #default is "."
 
 - Press 'w' to mark/unmark as watched 
 - Press 'p' to play the movie (set default with `xdg-mime`)
+- Press 's' to toggle watched filter
 - Press '?' to show all keybinds
 
 More options will be added in the future
