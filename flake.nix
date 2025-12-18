@@ -77,14 +77,14 @@
         formatting-nix = pkgs.runCommand "check-nix-formatting" {} ''
           echo "Checking Nix file formatting..."
           cd ${self}
-          ${pkgs.lib.getExe pkgs.alejandra} --check *.nix
+          find . -name "*.nix" -exec ${pkgs.lib.getExe pkgs.alejandra} --check {} + > /dev/null 2>&1
           touch $out
         '';
 
         formatting-rust = pkgs.runCommand "check-rust-formatting" {} ''
           echo "Checking Rust file formatting..."
           cd ${self}
-          ${pkgs.lib.getExe pkgs.rustfmt} --check src/*
+          find . -name "*.rs" -exec ${pkgs.lib.getExe pkgs.rustfmt} --check {} +
           touch $out
         '';
 
