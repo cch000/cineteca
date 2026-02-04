@@ -31,7 +31,7 @@ impl ViewWrapper for ListView {
 impl ListView {
     pub fn new(siv: &Cursive, path: &Path) -> Self {
         let view = SelectView::<String>::new()
-            .on_select(InfoView::refresh)
+            .on_select(|siv, _| InfoView::refresh(siv))
             .with_name(SELECT_ID)
             .scrollable()
             .scroll_x(true)
@@ -84,6 +84,8 @@ impl ListView {
                 view.set_selection(id);
             }
         }
+
+        InfoView::refresh(siv);
     }
 
     pub fn toggle_watched(siv: &mut Cursive) {
