@@ -6,9 +6,12 @@ use cursive::{
     views::{NamedView, Panel, TextView},
 };
 
-use crate::{collector::Movie, tui::user_data::UserData};
+use crate::{
+    collector::Movie,
+    tui::{list_view::ListView, user_data::UserData},
+};
 
-const INFO_ID: &str = "info";
+pub const INFO_ID: &str = "info";
 
 type ViewType = Panel<NamedView<TextView>>;
 
@@ -28,7 +31,9 @@ impl InfoView {
         Self { view }
     }
 
-    pub fn refresh(siv: &mut Cursive, name: &String) {
+    pub fn refresh(siv: &mut Cursive) {
+        let name = &ListView::get_selected_name(siv).unwrap();
+
         let movie_data = siv
             .with_user_data(|user_data: &mut UserData| {
                 let archive = user_data.get_mut_archive();

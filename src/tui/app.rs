@@ -104,9 +104,7 @@ impl App {
 
         ListView::refresh(&mut siv);
         FilterView::refresh(&mut siv);
-
-        let name = &ListView::get_selected_name(&mut siv).unwrap();
-        InfoView::refresh(&mut siv, name);
+        InfoView::refresh(&mut siv);
 
         siv.run();
     }
@@ -132,8 +130,8 @@ impl App {
                 }
             });
 
-            if let Some(name) = current_name {
-                InfoView::refresh(s, &name);
+            if let Some(_name) = current_name {
+                InfoView::refresh(s);
             }
 
             s.call_on_name(SCROLL_ID, |v: &mut ScrollView<NamedView<SelectView>>| {
