@@ -3,15 +3,23 @@ use std::{
     error::Error,
     ffi::OsStr,
     hash::{DefaultHasher, Hash, Hasher},
-    path::Path,
+    path::{Path, PathBuf},
     sync::mpsc,
     thread,
+    time::SystemTime,
 };
 
 use ffmpeg_next::log::Level::Quiet;
+use serde::{Deserialize, Serialize};
 use walkdir::{DirEntry, WalkDir};
 
-use crate::archive::Movie;
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Hash)]
+pub struct Movie {
+    pub name: String,
+    pub path: PathBuf,
+    pub date_watched: Option<SystemTime>,
+    pub duration: i64,
+}
 
 const EXTENSIONS: [&str; 4] = ["mkv", "mp4", "avi", "mov"];
 const MIN_DURATION: i64 = 3600;
@@ -57,23 +65,29 @@ impl Collector {
         (movies, hash.finish())
     }
 
-    fn is_movie(path: &Path, extensions: &HashSet<&OsStr>) -> Result<bool, Box<dyn Error>> {
+    fn get_duration_secs(path: &Path) -> Result<i64, Box<dyn Error>> {
+        Ok(
+            ffmpeg_next::format::input(path)?.duration()
+                / i64::from(ffmpeg_next::ffi::AV_TIME_BASE),
+        )
+    }
+
+    fn is_movie(path: &Path, extensions: &HashSet<&OsStr>, duration: i64) -> bool {
         if path
             .extension()
             .is_some_and(|ext| extensions.contains(&ext))
         {
-            let duration = ffmpeg_next::format::input(path)?.duration()
-                / i64::from(ffmpeg_next::ffi::AV_TIME_BASE);
-            Ok(duration >= MIN_DURATION)
+            duration >= MIN_DURATION
         } else {
-            Ok(false)
+            false
         }
     }
 
     fn process_entry(entry: &DirEntry, extensions: &HashSet<&OsStr>) -> Option<Movie> {
         let path = entry.path();
+        let duration = Self::get_duration_secs(path).unwrap_or(0);
 
-        if !Self::is_movie(path, extensions).unwrap_or(false) {
+        if !Self::is_movie(path, extensions, duration) {
             return None;
         }
 
@@ -83,6 +97,7 @@ impl Collector {
             name,
             path: path.to_path_buf(),
             date_watched: None,
+            duration,
         })
     }
 

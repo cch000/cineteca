@@ -11,9 +11,8 @@ use cursive::{
 };
 
 use crate::{
-    archive::Movie,
-    collector::Collector,
-    tui::{filter_view::Filter, user_data::UserData},
+    collector::{Collector, Movie},
+    tui::{filter_view::Filter, info_view::InfoView, user_data::UserData},
 };
 
 pub const SELECT_ID: &str = "select";
@@ -32,6 +31,7 @@ impl ViewWrapper for ListView {
 impl ListView {
     pub fn new(siv: &Cursive, path: &Path) -> Self {
         let view = SelectView::<String>::new()
+            .on_select(InfoView::refresh)
             .with_name(SELECT_ID)
             .scrollable()
             .scroll_x(true)
@@ -41,7 +41,7 @@ impl ListView {
         Self::background_refresh(siv, path);
 
         Self {
-            view: Panel::new(view).title("CINETECA"),
+            view: Panel::new(view),
         }
     }
 
@@ -66,14 +66,7 @@ impl ListView {
                         Filter::Watched => movie.date_watched.is_some(),
                         Filter::Empty => true,
                     })
-                    .map(|item| {
-                        let label = if item.date_watched.is_some() {
-                            format!("[WATCHED] {}", item.name)
-                        } else {
-                            item.name.clone()
-                        };
-                        (label, item.name)
-                    })
+                    .map(|item| (item.name.clone(), item.name))
                     .collect()
             })
             .unwrap_or_default();
@@ -127,7 +120,7 @@ impl ListView {
         }
     }
 
-    fn get_selected_name(siv: &mut Cursive) -> Option<String> {
+    pub fn get_selected_name(siv: &mut Cursive) -> Option<String> {
         siv.call_on_name(SELECT_ID, |s: &mut SelectView<String>| {
             s.selected_id()
                 .and_then(|id| s.get_item(id).map(|(_, name)| name.clone()))

@@ -2,8 +2,8 @@ use std::fmt::Display;
 
 use cursive::{
     Cursive,
-    view::{Nameable, Resizable, ViewWrapper},
-    views::{NamedView, Panel, ResizedView, TextView},
+    view::{Nameable, ViewWrapper},
+    views::{NamedView, Panel, TextView},
     wrap_impl,
 };
 
@@ -29,29 +29,29 @@ impl Display for Filter {
 }
 
 impl Filter {
-    fn cycle(&mut self) {
+    const fn cycle(&mut self) {
         *self = match self {
-            Filter::NotWatched => Filter::Watched,
-            Filter::Watched => Filter::Empty,
-            Filter::Empty => Filter::NotWatched,
+            Self::NotWatched => Self::Watched,
+            Self::Watched => Self::Empty,
+            Self::Empty => Self::NotWatched,
         };
     }
 }
 
-type ViewType = ResizedView<Panel<NamedView<TextView>>>;
+type ViewType = Panel<NamedView<TextView>>;
 
 pub struct FilterView {
     view: ViewType,
 }
 
 impl ViewWrapper for FilterView {
-    wrap_impl!(self. view: ViewType);
+    wrap_impl!(self.view: ViewType);
 }
 
 impl FilterView {
     pub fn new() -> Self {
         let view = TextView::new("").with_name(FILTER_ID);
-        let view = Panel::new(view).fixed_size((21, 3));
+        let view = Panel::new(view);
 
         Self { view }
     }
