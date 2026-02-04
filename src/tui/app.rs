@@ -2,7 +2,10 @@ use cursive::{
     Cursive, With,
     event::Event,
     theme::{BorderStyle, Palette},
-    views::{Dialog, LinearLayout, NamedView, OnEventView, ScrollView, SelectView, TextView},
+    view::Resizable,
+    views::{
+        Dialog, DummyView, LinearLayout, NamedView, OnEventView, ScrollView, SelectView, TextView,
+    },
 };
 
 use std::path::PathBuf;
@@ -11,6 +14,7 @@ use crate::{
     archive::Archive,
     tui::{
         filter_view::FilterView,
+        info_view::InfoView,
         list_view::{ListView, SCROLL_ID, SELECT_ID},
         user_data::UserData,
     },
@@ -68,16 +72,41 @@ impl App {
 
         let list_view = ListView::new(&siv, &self.path);
         let filter_view = FilterView::new();
+        let info_view = InfoView::new();
+
+        let content = r"
+  ___(_)_ __   ___| |_ ___  ___ __ _ 
+ / __| | '_ \ / _ \ __/ _ \/ __/ _` |
+| (__| | | | |  __/ ||  __/ (_| (_| |
+ \___|_|_| |_|\___|\__\___|\___\__,_|";
 
         siv.add_fullscreen_layer(
-            LinearLayout::horizontal()
-                .child(list_view)
-                .child(filter_view),
+            LinearLayout::vertical()
+                .child(
+                    LinearLayout::horizontal()
+                        .child(TextView::new(content).fixed_width(40))
+                        .child(
+                            LinearLayout::vertical()
+                                .child(DummyView.fixed_height(2))
+                                .child(filter_view.fixed_height(3).full_width()),
+                        ),
+                )
+                .child(
+                    LinearLayout::horizontal().child(list_view).child(
+                        LinearLayout::vertical()
+                            .child(info_view.full_height())
+                            .fixed_width(21),
+                    ),
+                ),
         );
 
         //Populate views
+
         ListView::refresh(&mut siv);
         FilterView::refresh(&mut siv);
+
+        let name = &ListView::get_selected_name(&mut siv).unwrap();
+        InfoView::refresh(&mut siv, name);
 
         siv.run();
     }
@@ -85,6 +114,37 @@ impl App {
     fn setup_keybinds(siv: &mut cursive::CursiveRunnable) {
         siv.add_global_callback('q', cursive::Cursive::quit);
         siv.add_global_callback('?', Self::show_keybinds);
+
+        // Helper to move selection and manually trigger the InfoView refresh
+        let move_and_refresh = |s: &mut Cursive, direction: i32| {
+            let mut current_name = None;
+
+            s.call_on_name(SELECT_ID, |v: &mut SelectView| {
+                let steps = direction.unsigned_abs() as usize;
+                if direction > 0 {
+                    v.select_down(steps);
+                } else {
+                    v.select_up(steps);
+                }
+
+                if let Some(name) = v.selection() {
+                    current_name = Some((*name).clone());
+                }
+            });
+
+            if let Some(name) = current_name {
+                InfoView::refresh(s, &name);
+            }
+
+            s.call_on_name(SCROLL_ID, |v: &mut ScrollView<NamedView<SelectView>>| {
+                v.scroll_to_left();
+                v.scroll_to_important_area();
+            });
+        };
+
+        siv.add_global_callback('j', move |s| move_and_refresh(s, 1));
+        siv.add_global_callback('k', move |s| move_and_refresh(s, -1));
+
         siv.add_global_callback('h', |siv| {
             siv.call_on_name(SCROLL_ID, |v: &mut ScrollView<NamedView<SelectView>>| {
                 v.scroll_to_left();
@@ -95,18 +155,7 @@ impl App {
                 v.scroll_to_right();
             });
         });
-        siv.add_global_callback('j', |siv| {
-            siv.call_on_name(SELECT_ID, |v: &mut SelectView| v.select_down(1));
-            siv.call_on_name(SCROLL_ID, |v: &mut ScrollView<NamedView<SelectView>>| {
-                v.scroll_to_important_area()
-            });
-        });
-        siv.add_global_callback('k', |siv| {
-            siv.call_on_name(SELECT_ID, |v: &mut SelectView| v.select_up(1));
-            siv.call_on_name(SCROLL_ID, |v: &mut ScrollView<NamedView<SelectView>>| {
-                v.scroll_to_important_area()
-            });
-        });
+
         siv.add_global_callback('w', ListView::toggle_watched);
         siv.add_global_callback('p', ListView::play_movie);
         siv.add_global_callback('s', FilterView::change_filter);

@@ -1,24 +1,15 @@
 use std::{
     error::Error,
-    fs,
-    hash::Hash,
-    mem,
+    fs, mem,
     path::{Path, PathBuf},
     time::SystemTime,
 };
 
 use serde::{Deserialize, Serialize};
 
-use crate::collector::Collector;
+use crate::collector::{Collector, Movie};
 
 const SAVE_FILE: &str = ".movies.json";
-
-#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Hash)]
-pub struct Movie {
-    pub name: String,
-    pub path: PathBuf,
-    pub date_watched: Option<SystemTime>,
-}
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Archive {
