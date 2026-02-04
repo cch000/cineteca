@@ -4,9 +4,6 @@ TUI movie library to keep track of watched movies in a directory and its subdire
 
 ![](img/screenshot.png)
 
-This screenshot shows a cineteca of four movies. One of them is selected and marked as watched, 
-the one above it is just marked as watched and the rest have not been watched.
-
 ## How does it work?
 
 The movie library (cineteca) is generated automatically, filtering out files that might not be movies.
@@ -48,7 +45,7 @@ declare it as a package to install, e.g., by adding it to systemPackages.
 ```
 ```Nix
   environment.systemPackages = [
-    inputs.cineteca.packages.${pkgs.system}.cineteca
+    inputs.cineteca.packages.${pkgs.stdenv.hostPlatform.system}.cineteca
   ];
 ```
 
