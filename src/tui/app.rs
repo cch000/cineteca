@@ -29,6 +29,12 @@ const HELP_KEYBINDS: &[&str] = &[
     "ESC -> go back",
 ];
 
+const CONTENT: &str = r"
+  ___(_)_ __   ___| |_ ___  ___ __ _ 
+ / __| | '_ \ / _ \ __/ _ \/ __/ _` |
+| (__| | | | |  __/ ||  __/ (_| (_| |
+ \___|_|_| |_|\___|\__\___|\___\__,_|";
+
 pub struct App {
     path: PathBuf,
 }
@@ -74,17 +80,11 @@ impl App {
         let filter_view = FilterView::new();
         let info_view = InfoView::new();
 
-        let content = r"
-  ___(_)_ __   ___| |_ ___  ___ __ _ 
- / __| | '_ \ / _ \ __/ _ \/ __/ _` |
-| (__| | | | |  __/ ||  __/ (_| (_| |
- \___|_|_| |_|\___|\__\___|\___\__,_|";
-
         siv.add_fullscreen_layer(
             LinearLayout::vertical()
                 .child(
                     LinearLayout::horizontal()
-                        .child(TextView::new(content).fixed_width(40))
+                        .child(TextView::new(CONTENT).fixed_width(40))
                         .child(
                             LinearLayout::vertical()
                                 .child(DummyView.fixed_height(2))
