@@ -41,7 +41,7 @@ impl InfoView {
                     .movies
                     .iter()
                     .find(|m| m.name == *name)
-                    .map(Self::format_movie_info)
+                    .map(Self::format_info)
             })
             .flatten();
 
@@ -52,26 +52,33 @@ impl InfoView {
         }
     }
 
-    fn format_movie_info(movie: &Movie) -> String {
-        let watched_status = movie.date_watched.map_or_else(
+    fn format_info(movie: &Movie) -> String {
+        let watched_time = movie.date_watched.map_or_else(
             || "Not yet".to_string(),
             |time| {
-                let days = SystemTime::now()
+                let hours = SystemTime::now()
                     .duration_since(time)
                     .unwrap_or_default()
                     .as_secs()
-                    / 86400;
+                    / 3600;
 
-                match days {
-                    0 => "Today".to_string(),
-                    1 => "A day ago".to_string(),
-                    _ => format!("{days} days ago"),
+                let days = hours / 24;
+
+                match hours {
+                    0 => "<1h ago".to_string(),
+                    1 => "1h ago".to_string(),
+                    2..24 => format!("{hours}h ago"),
+                    24.. => format!("{days}d ago"),
                 }
             },
         );
 
-        let length = movie.duration / 60;
+        let length = {
+            let hours = movie.duration / 3600;
+            let minutes = movie.duration / 60 % 60 + 1;
+            format!("{hours}h {minutes}min")
+        };
 
-        format!("WATCHED: {watched_status}\n\nLENGTH: {length} minutes")
+        format!("WATCHED: {watched_time}\n\nLENGTH: {length}")
     }
 }
