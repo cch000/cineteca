@@ -20,7 +20,7 @@ pub struct InfoView {
 }
 
 impl ViewWrapper for InfoView {
-    cursive:: wrap_impl!(self. view:  ViewType);
+    cursive:: wrap_impl!(self.view:  ViewType);
 }
 
 impl InfoView {
@@ -74,11 +74,25 @@ impl InfoView {
         );
 
         let length = {
-            let hours = movie.duration / 3600;
             let minutes = movie.duration / 60 % 60 + 1;
-            format!("{hours}h {minutes}min")
+            let hours = movie.duration / 3600;
+
+            match minutes {
+                0 => {
+                    format!("{hours}h")
+                }
+
+                1..60 => {
+                    format!("{hours}h {minutes}m")
+                }
+                60 => {
+                    let correction = hours + 1;
+                    format!("{correction}h")
+                }
+                _ => String::new(),
+            }
         };
 
-        format!("WATCHED: {watched_time}\n\nLENGTH: {length}")
+        format!("WATCHED: {watched_time}\nLENGTH: {length}")
     }
 }
