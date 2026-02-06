@@ -4,7 +4,8 @@ use cursive::{
     theme::{BorderStyle, Palette},
     view::Resizable,
     views::{
-        Dialog, DummyView, LinearLayout, NamedView, OnEventView, ScrollView, SelectView, TextView,
+        Dialog, DummyView, LinearLayout, NamedView, OnEventView, Panel, ScrollView, SelectView,
+        TextView,
     },
 };
 
@@ -16,6 +17,7 @@ use crate::{
         filter_view::FilterView,
         info_view::InfoView,
         list_view::{ListView, SCROLL_ID, SELECT_ID},
+        stats_view::StatsView,
         user_data::UserData,
     },
 };
@@ -79,6 +81,7 @@ impl App {
         let list_view = ListView::new(&siv, &self.path);
         let filter_view = FilterView::new();
         let info_view = InfoView::new();
+        let stats_view = StatsView::new();
 
         siv.add_fullscreen_layer(
             LinearLayout::vertical()
@@ -94,8 +97,10 @@ impl App {
                 .child(
                     LinearLayout::horizontal().child(list_view).child(
                         LinearLayout::vertical()
-                            .child(info_view.full_height())
-                            .fixed_width(21),
+                            .child(info_view)
+                            .child(Panel::new(DummyView).full_height())
+                            .child(stats_view)
+                            .fixed_width(19),
                     ),
                 ),
         );
@@ -105,6 +110,7 @@ impl App {
         ListView::refresh(&mut siv);
         FilterView::refresh(&mut siv);
         InfoView::refresh(&mut siv);
+        StatsView::refresh(&mut siv);
 
         siv.run();
     }
