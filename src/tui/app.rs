@@ -105,12 +105,8 @@ impl App {
                 ),
         );
 
-        //Populate views
-
         ListView::refresh(&mut siv);
         FilterView::refresh(&mut siv);
-        InfoView::refresh(&mut siv);
-        StatsView::refresh(&mut siv);
 
         siv.run();
     }

@@ -12,7 +12,7 @@ use cursive::{
 
 use crate::{
     collector::{Collector, Movie},
-    tui::{filter_view::Filter, info_view::InfoView, user_data::UserData},
+    tui::{filter_view::Filter, info_view::InfoView, stats_view::StatsView, user_data::UserData},
 };
 
 pub const SELECT_ID: &str = "select";
@@ -86,6 +86,7 @@ impl ListView {
         }
 
         InfoView::refresh(siv);
+        StatsView::refresh(siv);
     }
 
     pub fn toggle_watched(siv: &mut Cursive) {
