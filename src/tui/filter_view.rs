@@ -57,11 +57,7 @@ impl FilterView {
     }
 
     pub fn refresh(siv: &mut Cursive) {
-        let filter = siv
-            .user_data::<UserData>()
-            .unwrap()
-            .get_filter()
-            .to_string();
+        let filter = siv.user_data::<UserData>().unwrap().filter().to_string();
 
         if let Some(mut view) = siv.find_name::<TextView>(FILTER_ID) {
             view.set_content("Filter: ".to_owned() + &filter);
@@ -70,7 +66,7 @@ impl FilterView {
 
     pub fn change_filter(siv: &mut Cursive) {
         siv.with_user_data(|user_data: &mut UserData| {
-            user_data.get_mut_filter().cycle();
+            user_data.filter_mut().cycle();
         });
 
         Self::refresh(siv);

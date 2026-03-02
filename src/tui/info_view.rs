@@ -1,15 +1,10 @@
-use std::time::SystemTime;
-
 use cursive::{
     Cursive,
     view::{Nameable, ViewWrapper},
     views::{NamedView, Panel, TextView},
 };
 
-use crate::{
-    collector::Movie,
-    tui::{list_view::ListView, user_data::UserData},
-};
+use crate::tui::{list_view::ListView, user_data::UserData};
 
 pub const INFO_ID: &str = "info";
 
@@ -32,67 +27,26 @@ impl InfoView {
     }
 
     pub fn refresh(siv: &mut Cursive) {
-        let name = &ListView::get_selected_name(siv).unwrap();
+        let name = &ListView::get_selected_name(siv);
 
-        let movie_data = siv
-            .with_user_data(|user_data: &mut UserData| {
-                let archive = user_data.get_mut_archive();
-                archive
-                    .movies
-                    .iter()
-                    .find(|m| m.name == *name)
-                    .map(Self::format_info)
-            })
-            .flatten();
+        let movie_data = siv.user_data().and_then(|d: &mut UserData| {
+            d.archive_mut()
+                .movies
+                .iter()
+                .find(|m| m.name() == *name)
+                .map(|m| {
+                    format!(
+                        "WATCHED: {}\nLENGTH: {}",
+                        m.pretty_since_watched(),
+                        m.pretty_length()
+                    )
+                })
+        });
 
         if let Some(content) = movie_data {
             siv.call_on_name(INFO_ID, |v: &mut TextView| {
                 v.set_content(content);
             });
         }
-    }
-
-    fn format_info(movie: &Movie) -> String {
-        let watched_time = movie.date_watched.map_or_else(
-            || "Not yet".to_string(),
-            |time| {
-                let hours = SystemTime::now()
-                    .duration_since(time)
-                    .unwrap_or_default()
-                    .as_secs()
-                    / 3600;
-
-                let days = hours / 24;
-
-                match hours {
-                    0 => "<1h ago".to_string(),
-                    1 => "1h ago".to_string(),
-                    2..24 => format!("{hours}h ago"),
-                    24.. => format!("{days}d ago"),
-                }
-            },
-        );
-
-        let length = {
-            let minutes = movie.duration / 60 % 60 + 1;
-            let hours = movie.duration / 3600;
-
-            match minutes {
-                0 => {
-                    format!("{hours}h")
-                }
-
-                1..60 => {
-                    format!("{hours}h {minutes}m")
-                }
-                60 => {
-                    let correction = hours + 1;
-                    format!("{correction}h")
-                }
-                _ => String::new(),
-            }
-        };
-
-        format!("WATCHED: {watched_time}\nLENGTH: {length}")
     }
 }

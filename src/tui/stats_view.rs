@@ -29,30 +29,26 @@ impl StatsView {
     }
 
     pub fn refresh(siv: &mut Cursive) {
-        let Some((total_num, watched_num, recent_num)) =
-            siv.with_user_data(|user_data: &mut UserData| {
-                let time = SystemTime::now();
-                let movies = &user_data.get_mut_archive().movies;
-
-                movies
-                    .iter()
-                    .fold((movies.len(), 0, 0), |(_total, watched, recent), m| {
-                        let is_watched = m.date_watched.is_some();
-                        let is_recent = m.date_watched.is_some_and(|d| {
-                            time.duration_since(d)
-                                .map(|dur| dur.as_secs() / 86400 <= 14)
-                                .unwrap_or(false)
-                        });
-                        (
-                            _total, //passthrough
-                            watched + usize::from(is_watched),
-                            recent + usize::from(is_recent),
-                        )
-                    })
-            })
-        else {
+        let Some(user_data) = siv.user_data::<UserData>() else {
             return;
         };
+
+        let time = SystemTime::now();
+        let movies = &user_data.archive().movies;
+        let total_num = movies.len();
+
+        let (watched_num, recent_num) = movies.iter().fold((0, 0), |(watched, recent), m| {
+            let is_watched = m.since_watched().is_some();
+            let is_recent = m.since_watched().is_some_and(|d| {
+                time.duration_since(d)
+                    .map(|dur| dur.as_secs() / 86400 <= 14)
+                    .unwrap_or(false)
+            });
+            (
+                watched + usize::from(is_watched),
+                recent + usize::from(is_recent),
+            )
+        });
 
         let remaining = total_num - watched_num;
 
