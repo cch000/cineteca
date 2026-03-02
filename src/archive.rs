@@ -1,13 +1,13 @@
 use std::{
     error::Error,
-    fs, mem,
+    fs,
     path::{Path, PathBuf},
-    time::SystemTime,
 };
 
 use serde::{Deserialize, Serialize};
 
-use crate::collector::{Collector, Movie};
+use crate::collector::Collector;
+use crate::movie::Movie;
 
 const SAVE_FILE: &str = ".movies.json";
 
@@ -47,36 +47,33 @@ impl Archive {
         }
     }
 
-    pub fn toggle_watched(&mut self, name: &str) {
-        let index = self.get_index(name);
-        let movie = self.movies.get_mut(index).unwrap();
-
-        match movie.date_watched {
-            Some(_) => movie.date_watched = None,
-            None => movie.date_watched = Some(SystemTime::now()),
-        }
-    }
-
     fn get_index(&self, name: &str) -> usize {
         self.movies
-            .binary_search_by_key(&name, |movie| &movie.name)
+            .binary_search_by_key(&name, |movie| movie.name())
             .unwrap()
     }
 
     pub fn get_path(&self, name: &str) -> PathBuf {
+        self.movies
+            .get(self.get_index(name))
+            .unwrap()
+            .path()
+            .clone()
+    }
+
+    pub fn toggle_watched(&mut self, name: &str) {
         let index = self.get_index(name);
-        self.movies.get(index).unwrap().path.clone()
+        self.movies.get_mut(index).unwrap().toggle_watched();
     }
 
     pub fn set_watched(&mut self, name: &str) {
         let index = self.get_index(name);
-        self.movies.get_mut(index).unwrap().date_watched = Some(SystemTime::now());
+        self.movies.get_mut(index).unwrap().set_watched();
     }
 
     fn load_saved(save_path: &Path) -> Option<Self> {
         if Path::new(save_path).exists() {
             let json = fs::read_to_string(save_path).unwrap();
-
             let movies = serde_json::from_str(&json).expect("Error parsing json");
             Some(movies)
         } else {
@@ -109,14 +106,14 @@ impl Archive {
 
         let movies = movies.unwrap();
 
-        prev.retain(|item| movies.iter().any(|m| m.name == item.name));
+        prev.retain(|item| movies.iter().any(|m| m.name() == item.name()));
 
         prev.extend(movies.to_vec());
-        prev.sort_by(|a, b| a.name.cmp(&b.name));
-        prev.dedup_by(|a, b| b.name == a.name);
+        prev.sort_by(|a, b| a.name().cmp(b.name()));
+        prev.dedup_by(|a, b| b.name() == a.name());
 
         Self {
-            movies: mem::take(prev),
+            movies: prev.to_owned(),
             hash: hash.unwrap(),
             save_path: save_path.to_path_buf(),
             path: path.to_path_buf(),

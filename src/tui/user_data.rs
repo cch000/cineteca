@@ -13,15 +13,19 @@ impl UserData {
         }
     }
 
-    pub const fn get_filter(&self) -> &Filter {
-        &self.filter
+    pub const fn archive(&self) -> &Archive {
+        &self.archive
     }
 
-    pub const fn get_mut_filter(&mut self) -> &mut Filter {
-        &mut self.filter
+    pub const fn filter(&self) -> Filter {
+        self.filter
     }
 
-    pub const fn get_mut_archive(&mut self) -> &mut Archive {
+    pub const fn archive_mut(&mut self) -> &mut Archive {
         &mut self.archive
+    }
+
+    pub const fn filter_mut(&mut self) -> &mut Filter {
+        &mut self.filter
     }
 }

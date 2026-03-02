@@ -11,7 +11,8 @@ use cursive::{
 };
 
 use crate::{
-    collector::{Collector, Movie},
+    collector::Collector,
+    movie::Movie,
     tui::{filter_view::Filter, info_view::InfoView, stats_view::StatsView, user_data::UserData},
 };
 
@@ -48,25 +49,25 @@ impl ListView {
     pub fn refresh(siv: &mut Cursive) {
         let items: Vec<(String, String)> = siv
             .with_user_data(|user_data: &mut UserData| {
-                let archive = user_data.get_mut_archive();
+                let archive = user_data.archive_mut();
                 let mut items: Vec<Movie> = archive.movies.clone();
 
-                items.sort_by(|a, b| match (a.date_watched, b.date_watched) {
-                    (None, None) => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+                items.sort_by(|a, b| match (a.since_watched(), b.since_watched()) {
+                    (None, None) => a.name().to_lowercase().cmp(&b.name().to_lowercase()),
                     (None, Some(_)) => std::cmp::Ordering::Less,
                     (Some(_), None) => std::cmp::Ordering::Greater,
                     (Some(date_a), Some(date_b)) => date_b.cmp(&date_a),
                 });
 
-                let filter = user_data.get_mut_filter();
+                let filter = user_data.filter_mut();
                 items
                     .into_iter()
                     .filter(|movie| match filter {
-                        Filter::NotWatched => movie.date_watched.is_none(),
-                        Filter::Watched => movie.date_watched.is_some(),
+                        Filter::NotWatched => movie.since_watched().is_none(),
+                        Filter::Watched => movie.since_watched().is_some(),
                         Filter::Empty => true,
                     })
-                    .map(|item| (item.name.clone(), item.name))
+                    .map(|item| (item.name().to_string(), item.name().to_string()))
                     .collect()
             })
             .unwrap_or_default();
@@ -90,45 +91,44 @@ impl ListView {
     }
 
     pub fn toggle_watched(siv: &mut Cursive) {
-        if let Some(name) = Self::get_selected_name(siv) {
-            siv.with_user_data(|user_data: &mut UserData| {
-                let archive = user_data.get_mut_archive();
-                archive.toggle_watched(&name);
-                archive.save().ok();
-            });
-        }
+        let name = Self::get_selected_name(siv);
+        siv.with_user_data(|user_data: &mut UserData| {
+            let archive = user_data.archive_mut();
+            archive.toggle_watched(&name);
+            archive.save().ok();
+        });
 
         Self::refresh(siv);
     }
 
     pub fn play_movie(siv: &mut Cursive) {
-        if let Some(name) = Self::get_selected_name(siv) {
-            siv.with_user_data(|user_data: &mut UserData| {
-                let archive = user_data.get_mut_archive();
-                let path = archive.get_path(&name);
-                let path_string = path.to_string_lossy().into_owned();
+        let name = Self::get_selected_name(siv);
+        siv.with_user_data(|user_data: &mut UserData| {
+            let archive = user_data.archive_mut();
+            let path = archive.get_path(&name);
+            let path_string = path.to_string_lossy().into_owned();
 
-                Command::new("xdg-open")
-                    .arg(path_string)
-                    .stderr(Stdio::null())
-                    .stdin(Stdio::null())
-                    .spawn()
-                    .ok();
+            Command::new("xdg-open")
+                .arg(path_string)
+                .stderr(Stdio::null())
+                .stdin(Stdio::null())
+                .spawn()
+                .ok();
 
-                archive.set_watched(&name);
-                archive.save().ok();
-            });
+            archive.set_watched(&name);
+            archive.save().ok();
+        });
 
-            Self::refresh(siv);
-        }
+        Self::refresh(siv);
     }
 
-    pub fn get_selected_name(siv: &mut Cursive) -> Option<String> {
+    pub fn get_selected_name(siv: &mut Cursive) -> String {
         siv.call_on_name(SELECT_ID, |s: &mut SelectView<String>| {
             s.selected_id()
                 .and_then(|id| s.get_item(id).map(|(_, name)| name.clone()))
         })
         .flatten()
+        .unwrap()
     }
 
     fn background_refresh(siv: &Cursive, path: &Path) {
@@ -139,7 +139,7 @@ impl ListView {
 
             cb.send(Box::new(move |siv| {
                 siv.with_user_data(|user_data: &mut UserData| {
-                    let archive = user_data.get_mut_archive();
+                    let archive = user_data.archive_mut();
                     archive.update(&movies, hash);
                     archive.save().ok();
                 });
