@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use cursive::{
     Cursive, With,
     event::Event,
@@ -8,8 +10,6 @@ use cursive::{
         TextView,
     },
 };
-
-use std::path::PathBuf;
 
 use crate::{
     archive::Archive,
@@ -37,17 +37,13 @@ const CONTENT: &str = r"
 | (__| | | | |  __/ ||  __/ (_| (_| |
  \___|_|_| |_|\___|\__\___|\___\__,_|";
 
-pub struct App {
-    path: PathBuf,
-}
+pub struct App {}
 
 impl App {
-    pub const fn new(path: PathBuf) -> Self {
-        Self { path }
-    }
-
-    pub fn run(&self) {
+    pub fn run(path: &Path) {
         let mut siv = cursive::default();
+
+        siv.set_user_data(UserData::new(Archive::init(path)));
 
         siv.set_theme(cursive::theme::Theme {
             shadow: true,
@@ -76,9 +72,7 @@ impl App {
 
         Self::setup_keybinds(&mut siv);
 
-        siv.set_user_data(UserData::new(Archive::init(&self.path)));
-
-        let list_view = ListView::new(&siv, &self.path);
+        let list_view = ListView::new(&siv, path);
         let filter_view = FilterView::new();
         let info_view = InfoView::new();
         let stats_view = StatsView::new();
