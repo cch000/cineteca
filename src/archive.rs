@@ -9,6 +9,9 @@ use serde::{Deserialize, Serialize};
 use crate::collector::Collector;
 use crate::movie::Movie;
 
+#[cfg(debug_assertions)]
+const SAVE_FILE: &str = ".debug_cineteca.json";
+#[cfg(not(debug_assertions))]
 const SAVE_FILE: &str = ".movies.json";
 
 #[derive(Serialize, Deserialize, Clone)]
