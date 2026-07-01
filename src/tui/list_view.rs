@@ -47,7 +47,7 @@ impl ListView {
     }
 
     pub fn refresh(siv: &mut Cursive) {
-        let items = get_items(siv);
+        let items = Self::get_items(siv);
 
         if let Some(mut view) = siv.find_name::<SelectView<String>>(SELECT_ID) {
             let selected_id = view.selected_id();
@@ -113,7 +113,7 @@ impl ListView {
             cb.send(Box::new(move |siv| {
                 siv.with_user_data(|user_data: &mut UserData| {
                     let archive = user_data.archive_mut();
-                    archive.update(&movies, hash);
+                    archive.update(movies, hash);
                     archive.save().ok();
                 });
 
@@ -122,41 +122,41 @@ impl ListView {
             .ok();
         });
     }
-}
 
-fn get_items(siv: &mut Cursive) -> Vec<(String, String)> {
-    let Some(user_data) = siv.user_data::<UserData>() else {
-        return Vec::new();
-    };
-    let filter = *user_data.filter_mut();
-    let archive = &user_data.archive_mut();
+    fn get_items(siv: &mut Cursive) -> Vec<(String, String)> {
+        let Some(user_data) = siv.user_data::<UserData>() else {
+            return Vec::new();
+        };
+        let filter = *user_data.filter_mut();
+        let archive = &user_data.archive_mut();
 
-    let mut filtered_movies: Vec<&Movie> = archive
-        .movies
-        .iter()
-        .filter(|movie| match filter {
-            Filter::NotWatched => movie.since_watched().is_none(),
-            Filter::Watched => movie.since_watched().is_some(),
-            Filter::Empty => true,
-        })
-        .collect();
+        let mut filtered_movies: Vec<&Movie> = archive
+            .movies
+            .iter()
+            .filter(|movie| match filter {
+                Filter::NotWatched => movie.since_watched().is_none(),
+                Filter::Watched => movie.since_watched().is_some(),
+                Filter::Empty => true,
+            })
+            .collect();
 
-    filtered_movies.sort_by(|a, b| match (a.since_watched(), b.since_watched()) {
-        (None, None) => a
-            .name()
-            .chars()
-            .map(|c| c.to_ascii_lowercase())
-            .cmp(b.name().chars().map(|c| c.to_ascii_lowercase())),
-        (None, Some(_)) => std::cmp::Ordering::Less,
-        (Some(_), None) => std::cmp::Ordering::Greater,
-        (Some(date_a), Some(date_b)) => date_b.cmp(&date_a),
-    });
+        filtered_movies.sort_by(|a, b| match (a.since_watched(), b.since_watched()) {
+            (None, None) => a
+                .name()
+                .chars()
+                .map(|c| c.to_ascii_lowercase())
+                .cmp(b.name().chars().map(|c| c.to_ascii_lowercase())),
+            (None, Some(_)) => std::cmp::Ordering::Less,
+            (Some(_), None) => std::cmp::Ordering::Greater,
+            (Some(date_a), Some(date_b)) => date_b.cmp(&date_a),
+        });
 
-    filtered_movies
-        .into_iter()
-        .map(|item| {
-            let name = item.name().to_string();
-            (name.clone(), name)
-        })
-        .collect()
+        filtered_movies
+            .into_iter()
+            .map(|item| {
+                let name = item.name().to_string();
+                (name.clone(), name)
+            })
+            .collect()
+    }
 }

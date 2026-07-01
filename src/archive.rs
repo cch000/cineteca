@@ -15,35 +15,20 @@ const SAVE_FILE: &str = ".movies.json";
 pub struct Archive {
     pub movies: Vec<Movie>,
     hash: u64,
-
-    #[serde(skip)]
     save_path: PathBuf,
-    #[serde(skip)]
     path: PathBuf,
 }
 
 impl Archive {
     pub fn init(path: &Path) -> Self {
-        let save_path = PathBuf::from(format!("{}/{SAVE_FILE}", path.to_str().unwrap()));
-
-        if let Some(mut saved) = Self::load_saved(&save_path) {
-            saved.path = path.to_path_buf();
-            saved.save_path = save_path;
-            saved
-        } else {
-            Self::build_archive(path, None, None, None, &save_path)
-        }
+        let save_path = path.join(SAVE_FILE);
+        Self::load_saved(&save_path).unwrap_or_else(|_| Self::new(path, &save_path))
     }
 
-    pub fn update(&mut self, data: &[Movie], hash: u64) {
-        if hash != self.hash {
-            *self = Self::build_archive(
-                &self.path,
-                Some(&mut self.movies),
-                Some(data),
-                Some(hash),
-                &self.save_path,
-            );
+    pub fn update(&mut self, new_movies: Vec<Movie>, new_hash: u64) {
+        if new_hash != self.hash {
+            self.movies = new_movies;
+            self.hash = new_hash;
         }
     }
 
@@ -67,14 +52,10 @@ impl Archive {
         self.movies.get_mut(index).unwrap().set_watched();
     }
 
-    fn load_saved(save_path: &Path) -> Option<Self> {
-        if Path::new(save_path).exists() {
-            let json = fs::read_to_string(save_path).unwrap();
-            let movies = serde_json::from_str(&json).expect("Error parsing json");
-            Some(movies)
-        } else {
-            None
-        }
+    fn load_saved(save_path: &Path) -> Result<Self, Box<dyn Error>> {
+        let json = fs::read_to_string(save_path)?;
+        let movies = serde_json::from_str(&json)?;
+        Ok(movies)
     }
 
     pub fn save(&self) -> Result<(), Box<dyn Error>> {
@@ -83,34 +64,11 @@ impl Archive {
         Ok(())
     }
 
-    fn build_archive(
-        path: &Path,
-        prev: Option<&mut Vec<Movie>>,
-        movies: Option<&[Movie]>,
-        hash: Option<u64>,
-        save_path: &Path,
-    ) -> Self {
-        let Some(prev) = prev else {
-            let (movies, hash) = Collector::collect(path);
-            return Self {
-                movies,
-                hash,
-                save_path: save_path.to_path_buf(),
-                path: path.to_path_buf(),
-            };
-        };
-
-        let movies = movies.unwrap();
-
-        prev.retain(|item| movies.iter().any(|m| m.name() == item.name()));
-
-        prev.extend(movies.to_vec());
-        prev.sort_by(|a, b| a.name().cmp(b.name()));
-        prev.dedup_by(|a, b| b.name() == a.name());
-
+    fn new(path: &Path, save_path: &Path) -> Self {
+        let (movies, hash) = Collector::collect(path);
         Self {
-            movies: prev.to_owned(),
-            hash: hash.unwrap(),
+            movies,
+            hash,
             save_path: save_path.to_path_buf(),
             path: path.to_path_buf(),
         }
