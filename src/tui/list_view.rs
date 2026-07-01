@@ -47,45 +47,19 @@ impl ListView {
     }
 
     pub fn refresh(siv: &mut Cursive) {
-        let items: Vec<(String, String)> = siv
-            .with_user_data(|user_data: &mut UserData| {
-                let archive = user_data.archive_mut();
-                let mut items: Vec<Movie> = archive.movies.clone();
-
-                items.sort_by(|a, b| match (a.since_watched(), b.since_watched()) {
-                    (None, None) => a.name().to_lowercase().cmp(&b.name().to_lowercase()),
-                    (None, Some(_)) => std::cmp::Ordering::Less,
-                    (Some(_), None) => std::cmp::Ordering::Greater,
-                    (Some(date_a), Some(date_b)) => date_b.cmp(&date_a),
-                });
-
-                let filter = user_data.filter_mut();
-                items
-                    .into_iter()
-                    .filter(|movie| match filter {
-                        Filter::NotWatched => movie.since_watched().is_none(),
-                        Filter::Watched => movie.since_watched().is_some(),
-                        Filter::Empty => true,
-                    })
-                    .map(|item| (item.name().to_string(), item.name().to_string()))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let items = get_items(siv);
 
         if let Some(mut view) = siv.find_name::<SelectView<String>>(SELECT_ID) {
             let selected_id = view.selected_id();
 
             view.clear();
 
-            for (label, id) in items {
-                view.add_item(label, id);
-            }
+            view.add_all(items);
 
             if let Some(id) = selected_id {
                 view.set_selection(id);
             }
         }
-
         InfoView::refresh(siv);
         StatsView::refresh(siv);
     }
@@ -124,11 +98,10 @@ impl ListView {
 
     pub fn get_selected_name(siv: &mut Cursive) -> String {
         siv.call_on_name(SELECT_ID, |s: &mut SelectView<String>| {
-            s.selected_id()
-                .and_then(|id| s.get_item(id).map(|(_, name)| name.clone()))
+            s.selection().map(|rc_string| rc_string.to_string())
         })
         .flatten()
-        .unwrap()
+        .unwrap_or_default()
     }
 
     fn background_refresh(siv: &Cursive, path: &Path) {
@@ -149,4 +122,41 @@ impl ListView {
             .ok();
         });
     }
+}
+
+fn get_items(siv: &mut Cursive) -> Vec<(String, String)> {
+    let Some(user_data) = siv.user_data::<UserData>() else {
+        return Vec::new();
+    };
+    let filter = *user_data.filter_mut();
+    let archive = &user_data.archive_mut();
+
+    let mut filtered_movies: Vec<&Movie> = archive
+        .movies
+        .iter()
+        .filter(|movie| match filter {
+            Filter::NotWatched => movie.since_watched().is_none(),
+            Filter::Watched => movie.since_watched().is_some(),
+            Filter::Empty => true,
+        })
+        .collect();
+
+    filtered_movies.sort_by(|a, b| match (a.since_watched(), b.since_watched()) {
+        (None, None) => a
+            .name()
+            .chars()
+            .map(|c| c.to_ascii_lowercase())
+            .cmp(b.name().chars().map(|c| c.to_ascii_lowercase())),
+        (None, Some(_)) => std::cmp::Ordering::Less,
+        (Some(_), None) => std::cmp::Ordering::Greater,
+        (Some(date_a), Some(date_b)) => date_b.cmp(&date_a),
+    });
+
+    filtered_movies
+        .into_iter()
+        .map(|item| {
+            let name = item.name().to_string();
+            (name.clone(), name)
+        })
+        .collect()
 }

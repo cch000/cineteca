@@ -53,12 +53,8 @@ impl Archive {
             .unwrap()
     }
 
-    pub fn get_path(&self, name: &str) -> PathBuf {
-        self.movies
-            .get(self.get_index(name))
-            .unwrap()
-            .path()
-            .clone()
+    pub fn get_path(&self, name: &str) -> &Path {
+        self.movies.get(self.get_index(name)).unwrap().path()
     }
 
     pub fn toggle_watched(&mut self, name: &str) {

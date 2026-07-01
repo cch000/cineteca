@@ -41,8 +41,7 @@ impl StatsView {
             let is_watched = m.since_watched().is_some();
             let is_recent = m.since_watched().is_some_and(|d| {
                 time.duration_since(d)
-                    .map(|dur| dur.as_secs() / 86400 <= 14)
-                    .unwrap_or(false)
+                    .is_ok_and(|dur| dur.as_secs() / 86400 <= 14)
             });
             (
                 watched + usize::from(is_watched),
