@@ -1,18 +1,19 @@
 use std::{
     error::Error,
+    num::NonZero,
     path::{Path, PathBuf},
     time::SystemTime,
 };
 
 use serde::{Deserialize, Serialize};
 
-const MIN_LENGTH: i64 = 3600;
+const MIN_LENGTH: u64 = 3600;
 const EXTENSIONS: [&str; 4] = ["mkv", "mp4", "avi", "mov"];
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Hash)]
-pub struct MediaPath(PathBuf);
+pub struct MoviePath(PathBuf);
 
-impl TryFrom<&Path> for MediaPath {
+impl TryFrom<&Path> for MoviePath {
     type Error = Box<dyn Error>;
 
     fn try_from(path: &Path) -> Result<Self, Self::Error> {
@@ -27,26 +28,28 @@ impl TryFrom<&Path> for MediaPath {
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Hash)]
-struct MovieLength(i64);
+struct MovieLength(NonZero<u64>);
 
 impl TryFrom<&Path> for MovieLength {
     type Error = Box<dyn Error>;
     fn try_from(path: &Path) -> Result<Self, Self::Error> {
-        let length = ffmpeg_next::format::input(&path)?.duration()
-            / i64::from(ffmpeg_next::ffi::AV_TIME_BASE);
+        let len: u64 = ffmpeg_next::format::input(&path)?
+            .duration()
+            .cast_unsigned()
+            / u64::from(ffmpeg_next::ffi::AV_TIME_BASE.cast_unsigned());
 
-        Ok(Self(
-            (length > MIN_LENGTH)
-                .then_some(length)
-                .ok_or("Length below minimum")?,
-        ))
+        let valid_len = (len > MIN_LENGTH)
+            .then_some(NonZero::<u64>::new(len).ok_or("Length cannot be zero")?)
+            .ok_or("Length below minimum")?;
+
+        Ok(Self(valid_len))
     }
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Hash)]
 pub struct Movie {
     name: String,
-    path: MediaPath,
+    path: MoviePath,
     length: MovieLength,
     since_watched: Option<SystemTime>,
 }
@@ -65,21 +68,13 @@ impl Movie {
     }
 
     pub fn pretty_length(&self) -> String {
-        let minutes = self.length.0 / 60 % 60 + 1;
-        let hours = self.length.0 / 3600;
+        let minutes = self.length.0.get() / 60 % 60 + 1;
+        let hours = self.length.0.get() / 3600;
 
         match minutes {
-            0 => {
-                format!("{hours}h")
-            }
-
-            1..60 => {
-                format!("{hours}h {minutes}m")
-            }
-            60 => {
-                let correction = hours + 1;
-                format!("{correction}h")
-            }
+            0 => format!("{hours}h"),
+            1..60 => format!("{hours}h {minutes}m"),
+            60 => format!("{}h", hours + 1),
             _ => String::new(),
         }
     }
@@ -90,7 +85,7 @@ impl Movie {
             |time| {
                 let hours_since = SystemTime::now()
                     .duration_since(time)
-                    .unwrap_or_default()
+                    .expect("Error calculating duration")
                     .as_secs()
                     / 3600;
 
@@ -128,7 +123,7 @@ impl TryFrom<&Path> for Movie {
 
         Ok(Self {
             name,
-            path: MediaPath::try_from(path)?,
+            path: MoviePath::try_from(path)?,
             length: MovieLength::try_from(path)?,
             since_watched: None,
         })
