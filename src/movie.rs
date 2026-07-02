@@ -63,7 +63,7 @@ impl Movie {
         &self.name
     }
 
-    pub const fn since_watched(&self) -> Option<SystemTime> {
+    pub const fn watched(&self) -> Option<SystemTime> {
         self.since_watched
     }
 
@@ -79,7 +79,7 @@ impl Movie {
         }
     }
 
-    pub fn pretty_since_watched(&self) -> String {
+    pub fn pretty_watched(&self) -> String {
         self.since_watched.map_or_else(
             || "Not yet".to_string(),
             |time| {
@@ -106,8 +106,12 @@ impl Movie {
         }
     }
 
-    pub fn set_watched(&mut self) {
+    pub fn mark_watched(&mut self) {
         self.since_watched = Some(SystemTime::now());
+    }
+
+    pub const fn restore_watched(&mut self, time: SystemTime) {
+        self.since_watched = Some(time);
     }
 }
 

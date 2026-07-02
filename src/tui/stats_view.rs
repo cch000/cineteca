@@ -38,8 +38,8 @@ impl StatsView {
         let total_num = movies.len();
 
         let (watched_num, recent_num) = movies.iter().fold((0, 0), |(watched, recent), m| {
-            let is_watched = m.since_watched().is_some();
-            let is_recent = m.since_watched().is_some_and(|d| {
+            let is_watched = m.watched().is_some();
+            let is_recent = m.watched().is_some_and(|d| {
                 time.duration_since(d)
                     .is_ok_and(|dur| dur.as_secs() / 86400 <= 14)
             });

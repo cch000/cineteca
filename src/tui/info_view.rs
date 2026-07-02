@@ -37,7 +37,7 @@ impl InfoView {
                 .map(|m| {
                     format!(
                         "WATCHED: {}\nLENGTH: {}",
-                        m.pretty_since_watched(),
+                        m.pretty_watched(),
                         m.pretty_length()
                     )
                 })
