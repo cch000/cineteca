@@ -31,7 +31,7 @@ const HELP_KEYBINDS: &[&str] = &[
     "ESC -> go back",
 ];
 
-const CONTENT: &str = r"
+const TITLE: &str = r"
   ___(_)_ __   ___| |_ ___  ___ __ _ 
  / __| | '_ \ / _ \ __/ _ \/ __/ _` |
 | (__| | | | |  __/ ||  __/ (_| (_| |
@@ -81,7 +81,7 @@ impl App {
             LinearLayout::vertical()
                 .child(
                     LinearLayout::horizontal()
-                        .child(TextView::new(CONTENT).fixed_width(40))
+                        .child(TextView::new(TITLE).fixed_width(40))
                         .child(
                             LinearLayout::vertical()
                                 .child(DummyView.fixed_height(2))

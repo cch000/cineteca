@@ -11,11 +11,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     match env::args().nth(1).as_deref().unwrap_or(".") {
         "-h" | "--help" => {
             println!("Usage: cineteca [path] #defaults to current dir");
-            Ok(())
         }
         input => {
             App::run(&PathBuf::from(input).canonicalize()?);
-            Ok(())
         }
     }
+    Ok(())
 }
