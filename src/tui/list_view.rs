@@ -134,13 +134,13 @@ impl ListView {
             .movies
             .iter()
             .filter(|movie| match filter {
-                Filter::NotWatched => movie.since_watched().is_none(),
-                Filter::Watched => movie.since_watched().is_some(),
+                Filter::NotWatched => movie.watched().is_none(),
+                Filter::Watched => movie.watched().is_some(),
                 Filter::Empty => true,
             })
             .collect();
 
-        filtered_movies.sort_by(|a, b| match (a.since_watched(), b.since_watched()) {
+        filtered_movies.sort_by(|a, b| match (a.watched(), b.watched()) {
             (None, None) => a
                 .name()
                 .chars()

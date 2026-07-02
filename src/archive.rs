@@ -29,10 +29,27 @@ impl Archive {
     }
 
     pub fn update(&mut self, new_movies: Vec<Movie>, new_hash: u64) {
-        if new_hash != self.hash {
-            self.movies = new_movies;
-            self.hash = new_hash;
+        if new_hash == self.hash {
+            return;
         }
+
+        self.hash = new_hash;
+
+        self.movies = new_movies
+            .into_iter()
+            .map(|mut new_movie| {
+                if let Some(watched) = self
+                    .movies
+                    .binary_search_by_key(&new_movie.name(), |m| m.name())
+                    .ok()
+                    .and_then(|idx| self.movies[idx].watched())
+                {
+                    new_movie.restore_watched(watched);
+                }
+
+                new_movie
+            })
+            .collect();
     }
 
     fn get_index(&self, name: &str) -> usize {
@@ -52,7 +69,7 @@ impl Archive {
 
     pub fn set_watched(&mut self, name: &str) {
         let index = self.get_index(name);
-        self.movies.get_mut(index).unwrap().set_watched();
+        self.movies.get_mut(index).unwrap().mark_watched();
     }
 
     fn load_saved(save_path: &Path) -> Result<Self, Box<dyn Error>> {
