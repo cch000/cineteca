@@ -11,6 +11,39 @@ const MIN_LENGTH: u64 = 3600;
 const EXTENSIONS: [&str; 4] = ["mkv", "mp4", "avi", "mov"];
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Hash)]
+pub struct MovieName(String);
+
+impl TryFrom<&Path> for MovieName {
+    type Error = Box<dyn Error>;
+
+    fn try_from(path: &Path) -> Result<Self, Self::Error> {
+        let name = path
+            .file_name()
+            .ok_or("Path does not have a valid filename")?
+            .to_string_lossy()
+            .into_owned();
+
+        let year = |word: &str| {
+            if word.starts_with('(') && word.len() == 6 {
+                &word[1..5]
+            } else {
+                word
+            }
+            .parse()
+            .map(|x: u32| x > 1900 || x < 2100)
+            .is_ok()
+        };
+
+        let contains_year = name.split_whitespace().any(year) || name.split('.').any(year);
+
+        if !contains_year {
+            return Err("Movie does not contain a year".into());
+        }
+        Ok(Self(name))
+    }
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Hash)]
 pub struct MoviePath(PathBuf);
 
 impl TryFrom<&Path> for MoviePath {
@@ -48,7 +81,7 @@ impl TryFrom<&Path> for MovieLength {
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Clone, Hash)]
 pub struct Movie {
-    name: String,
+    name: MovieName,
     path: MoviePath,
     length: MovieLength,
     since_watched: Option<SystemTime>,
@@ -60,7 +93,7 @@ impl Movie {
     }
 
     pub fn name(&self) -> &str {
-        &self.name
+        &self.name.0
     }
 
     pub const fn watched(&self) -> Option<SystemTime> {
@@ -119,14 +152,8 @@ impl TryFrom<&Path> for Movie {
     type Error = Box<dyn Error>;
 
     fn try_from(path: &Path) -> Result<Self, Self::Error> {
-        let name = path
-            .file_name()
-            .ok_or("Path does not have a valid filename")?
-            .to_string_lossy()
-            .into_owned();
-
         Ok(Self {
-            name,
+            name: MovieName::try_from(path)?,
             path: MoviePath::try_from(path)?,
             length: MovieLength::try_from(path)?,
             since_watched: None,
